@@ -246,7 +246,7 @@ const s: Record<string, React.CSSProperties> = {
   toggleActive: { background: "#fff", color: "#111", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" },
   inputRow: { display: "flex", gap: 10 },
   input: { flex: 1, padding: "11px 14px", border: "1px solid #e5e7eb", borderRadius: 10, fontSize: 14, outline: "none", color: "#111" },
-  searchBtn: { padding: "11px 20px", background: "#111", color: "#fff", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" },
+  searchBtn: { padding: "11px 20px", background: "#111", color: "#fff", border: "none", borderRadius: 16, fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" },
   errorBox: { marginTop: 14, padding: "10px 14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: 13, color: "#dc2626", display: "flex", gap: 8, alignItems: "center" },
   results: { display: "flex", flexDirection: "column", gap: 16 },
   resultsHeader: { fontSize: 13, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" },
@@ -258,6 +258,6 @@ const s: Record<string, React.CSSProperties> = {
   badgeBtn: { border: "none", transition: "opacity 0.15s", outline: "none", fontFamily: "inherit" },
   detail: { fontSize: 13, color: "#6b7280", marginBottom: 8 },
   trackingBox: { fontSize: 13, color: "#374151", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "8px 12px", marginBottom: 12 },
-  viewBtn: { display: "inline-block", marginTop: 12, padding: "9px 18px", background: "#111", color: "#fff", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none" },
+  viewBtn: { display: "inline-block", marginTop: 12, padding: "9px 18px", background: "#111", color: "#fff", borderRadius: 16, fontSize: 14, fontWeight: 600, textDecoration: "none" },
   emptyBox: { background: "#fff", borderRadius: 14, padding: 32, textAlign: "center", color: "#374151", fontSize: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" },
 }

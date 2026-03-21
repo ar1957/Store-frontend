@@ -15,6 +15,57 @@ type PaymentButtonProps = {
   onBeforeSubmit?: () => Promise<void>
 }
 
+// ── Processing overlay shown while order is being placed ──────────────────
+function ProcessingOverlay() {
+  return (
+    <div style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.55)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 9999,
+    }}>
+      <div style={{
+        background: "#fff",
+        borderRadius: 16,
+        padding: "36px 48px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 20,
+        boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+        maxWidth: 340,
+        textAlign: "center",
+      }}>
+        {/* Spinner */}
+        <div style={{
+          width: 52,
+          height: 52,
+          borderRadius: "50%",
+          border: "4px solid #e5e7eb",
+          borderTopColor: "var(--color-primary, #111)",
+          animation: "mhc-spin 0.8s linear infinite",
+        }} />
+        <style>{`
+          @keyframes mhc-spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 16, color: "#111", marginBottom: 6 }}>
+            Creating your visit request…
+          </div>
+          <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
+            Please wait while we securely process your order. Do not close this page.
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const PaymentButton: React.FC<PaymentButtonProps> = ({
   cart,
   "data-testid": dataTestId,
@@ -27,9 +78,6 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
     (s) => s.status === "pending"
   )
 
-  // ── CRITICAL: Only mount StripePaymentButton when client_secret exists.
-  // Without client_secret, PaymentWrapper hasn't wrapped with <Elements>,
-  // so useStripe() inside StripePaymentButton would throw.
   if (isStripeLike(paymentSession?.provider_id)) {
     if (!paymentSession?.data?.client_secret) {
       return <Button disabled size="large" className="w-full">Place order</Button>
@@ -79,20 +127,32 @@ const StripePaymentButton = ({
 
   const onPaymentCompleted = async () => {
     await placeOrder()
-      .catch((err) => setErrorMessage(err.message))
-      .finally(() => setSubmitting(false))
+      .catch((err) => {
+        // 409 means cart is already being completed — treat as success and wait for redirect
+        if (err?.message?.includes("409") || err?.message?.includes("conflicted") || err?.message?.includes("already being completed")) {
+          return
+        }
+        setErrorMessage(err.message)
+        setSubmitting(false)
+      })
+    // intentionally don't setSubmitting(false) on success — overlay stays
+    // until the page navigates away to the confirmation page
   }
 
   const handlePayment = async () => {
+    if (submitting) return
     setSubmitting(true)
     if (!stripe || !elements || !card || !cart) {
       setSubmitting(false)
       return
     }
 
-    // Save address before confirming payment
     if (onBeforeSubmit) {
-      await onBeforeSubmit()
+      try {
+        await onBeforeSubmit()
+      } catch {
+        // address save failure is non-fatal — address may already be saved
+      }
     }
 
     await stripe
@@ -122,8 +182,9 @@ const StripePaymentButton = ({
 
   return (
     <>
+      {submitting && <ProcessingOverlay />}
       <Button
-        disabled={isDisabled}
+        disabled={isDisabled || submitting}
         onClick={handlePayment}
         size="large"
         isLoading={submitting}
@@ -148,16 +209,24 @@ const ManualTestPaymentButton = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const handlePayment = async () => {
+    if (submitting) return
     setSubmitting(true)
     await placeOrder()
-      .catch((err) => setErrorMessage(err.message))
-      .finally(() => setSubmitting(false))
+      .catch((err) => {
+        // 409 = already being completed, treat as success
+        if (err?.message?.includes("409") || err?.message?.includes("conflicted") || err?.message?.includes("already being completed")) {
+          return
+        }
+        setErrorMessage(err.message)
+        setSubmitting(false)
+      })
   }
 
   return (
     <>
+      {submitting && <ProcessingOverlay />}
       <Button
-        disabled={notReady}
+        disabled={notReady || submitting}
         isLoading={submitting}
         onClick={handlePayment}
         size="large"

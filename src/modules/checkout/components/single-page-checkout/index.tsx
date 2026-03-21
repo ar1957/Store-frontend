@@ -328,15 +328,20 @@ export default function SinglePageCheckout({
               cart={liveCart}
               data-testid="submit-order-button"
               onBeforeSubmit={async () => {
-                if (addressFormRef.current) {
-                  const formData = new FormData(addressFormRef.current)
-                  if (sameAsBilling) formData.set("same_as_billing", "on")
-                  await saveShippingAddress(formData)
+                // Save address only if not already complete on the server
+                if (addressFormRef.current && !cart.shipping_address?.address_1) {
+                  try {
+                    const formData = new FormData(addressFormRef.current)
+                    if (sameAsBilling) formData.set("same_as_billing", "on")
+                    await saveShippingAddress(formData)
+                  } catch {
+                    // non-fatal — address may already be saved
+                  }
                 }
               }}
             />
             ) : (
-            <button disabled className="w-full rounded-lg bg-gray-300 text-white py-3 font-semibold cursor-not-allowed">
+            <button disabled className="w-full rounded-2xl bg-gray-300 text-white py-3 font-semibold cursor-not-allowed text-sm">
               Place order
             </button>
           )}

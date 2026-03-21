@@ -82,3 +82,18 @@ export const removeCartId = async () => {
     maxAge: -1,
   })
 }
+
+export const setClinicDomain = async (domain: string) => {
+  const cookies = await nextCookies()
+  cookies.set("_mhc_clinic_domain", domain, {
+    maxAge: 60 * 60, // 1 hour
+    httpOnly: false,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  })
+}
+
+export const getClinicDomain = async (): Promise<string | null> => {
+  const cookies = await nextCookies()
+  return cookies.get("_mhc_clinic_domain")?.value || null
+}

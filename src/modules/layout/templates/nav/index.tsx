@@ -55,14 +55,16 @@ export default function Nav({ logoUrl, getStartedUrl, navLinks, clinicName }: Na
           {startIsExternal ? (
             <a
               href={startUrl}
-              className="bg-[#FFD700] hover:bg-[#e6c200] text-black px-5 py-2.5 rounded font-bold text-[11px] uppercase tracking-wider transition-colors whitespace-nowrap"
+              style={{ background: "var(--color-primary, #FFD700)", color: "var(--button-text, #111)" }}
+              className="hover:opacity-90 text-black px-5 py-2.5 rounded-2xl font-bold text-sm uppercase tracking-wider transition-opacity whitespace-nowrap"
             >
               Get Started
             </a>
           ) : (
             <LocalizedClientLink
               href={startUrl}
-              className="bg-[#FFD700] hover:bg-[#e6c200] text-black px-5 py-2.5 rounded font-bold text-[11px] uppercase tracking-wider transition-colors whitespace-nowrap"
+              style={{ background: "var(--color-primary, #FFD700)", color: "var(--button-text, #111)" }}
+              className="hover:opacity-90 px-5 py-2.5 rounded-2xl font-bold text-sm uppercase tracking-wider transition-opacity whitespace-nowrap"
             >
               Get Started
             </LocalizedClientLink>
