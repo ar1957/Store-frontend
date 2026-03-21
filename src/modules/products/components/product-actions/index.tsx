@@ -225,12 +225,16 @@ export default function ProductActions({
   const handleAddToCart = async () => {
     if (!selectedVariant?.id) return null
     setIsAdding(true)
-    await addToCart({
-      variantId: selectedVariant.id,
-      quantity: 1,
-      countryCode,
-    })
-    setIsAdding(false)
+    try {
+      await addToCart({
+        variantId: selectedVariant.id,
+        quantity: 1,
+        countryCode,
+      })
+      router.push(`/${countryCode}/cart`)
+    } finally {
+      setIsAdding(false)
+    }
   }
 
   // Button click — show eligibility modal or add to cart directly
@@ -238,13 +242,8 @@ export default function ProductActions({
     if (requiresEligibility && !alreadyScreened) {
       setShowEligibility(true)
     } else if (requiresEligibility && alreadyScreened) {
-      // Already screened — reuse cached eligibility and go straight to cart
-      const cached = getCachedEligibility()
-      if (cached) {
-        handleEligibilityApproved({ ...cached, productId: product.id })
-      } else {
-        setShowEligibility(true)
-      }
+      // Already screened — just add to cart directly, no need to re-save metadata
+      handleAddToCart()
     } else {
       handleAddToCart()
     }
@@ -283,7 +282,6 @@ export default function ProductActions({
 
       if (!cartId) {
         console.error("Could not retrieve cart ID")
-        // Still navigate to cart — the item was added even if we can't save eligibility
         router.push(`/${countryCode}/cart`)
         return
       }
@@ -310,7 +308,6 @@ export default function ProductActions({
       router.push(`/${countryCode}/cart`)
     } catch (e) {
       console.error("Error saving eligibility to cart:", e)
-      // Even if metadata save failed, still go to cart
       router.push(`/${countryCode}/cart`)
     } finally {
       setIsAdding(false)

@@ -12,12 +12,14 @@ type PaymentButtonProps = {
   cart: HttpTypes.StoreCart
   "data-testid": string
   disabled?: boolean
+  onBeforeSubmit?: () => Promise<void>
 }
 
 const PaymentButton: React.FC<PaymentButtonProps> = ({
   cart,
   "data-testid": dataTestId,
   disabled = false,
+  onBeforeSubmit,
 }) => {
   const notReady = !cart || disabled
 
@@ -37,6 +39,7 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
         notReady={notReady}
         cart={cart}
         data-testid={dataTestId}
+        onBeforeSubmit={onBeforeSubmit}
       />
     )
   }
@@ -54,10 +57,12 @@ const StripePaymentButton = ({
   cart,
   notReady,
   "data-testid": dataTestId,
+  onBeforeSubmit,
 }: {
   cart: HttpTypes.StoreCart
   notReady: boolean
   "data-testid"?: string
+  onBeforeSubmit?: () => Promise<void>
 }) => {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -83,6 +88,11 @@ const StripePaymentButton = ({
     if (!stripe || !elements || !card || !cart) {
       setSubmitting(false)
       return
+    }
+
+    // Save address before confirming payment
+    if (onBeforeSubmit) {
+      await onBeforeSubmit()
     }
 
     await stripe

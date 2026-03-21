@@ -13,7 +13,7 @@ export async function middleware(request: NextRequest) {
         "host": host, 
         "x-publishable-api-key": process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || "" 
       },
-      next: { revalidate: 60 },
+      cache: "no-store", // never cache — each host must get its own tenant key
     })
     const data = await res.json()
     if (data?.tenant?.apiKey) {

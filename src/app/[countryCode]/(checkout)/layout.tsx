@@ -1,43 +1,76 @@
-import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import ChevronDown from "@modules/common/icons/chevron-down"
-import MedusaCTA from "@modules/layout/components/medusa-cta"
+import { headers } from "next/headers"
+import Nav from "@modules/layout/templates/nav"
+import Footer from "@modules/layout/templates/footer"
 
-export default function CheckoutLayout({
+type NavLink = { label: string; url: string; open_new_tab?: boolean; children?: NavLink[] }
+type SocialLink = { platform: string; url: string }
+type UiConfig = {
+  nav_links?: NavLink[]
+  footer_links?: NavLink[]
+  bottom_links?: NavLink[]
+  logo_url?: string | null
+  get_started_url?: string | null
+  contact_phone?: string | null
+  contact_email?: string | null
+  contact_address?: string | null
+  social_links?: SocialLink[]
+  certification_image_url?: string | null
+} | null
+
+async function fetchUiConfig(host: string): Promise<UiConfig> {
+  try {
+    const backendUrl = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+    const res = await fetch(`${backendUrl}/store/clinics/ui-config`, {
+      headers: {
+        host,
+        "x-forwarded-host": host,
+        "x-publishable-api-key": process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || "",
+        "content-type": "application/json",
+      },
+      cache: "no-store",
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.config || null
+  } catch {
+    return null
+  }
+}
+
+export default async function CheckoutLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const reqHeaders = await headers()
+  const host = reqHeaders.get("host") || ""
+  const tenantApiKey = reqHeaders.get("x-tenant-api-key") || ""
+  const tenantDomain = reqHeaders.get("x-tenant-domain") || ""
+
+  const uiConfig = await fetchUiConfig(host)
+
   return (
     <div className="w-full bg-white relative small:min-h-screen">
-      <div className="h-16 bg-white border-b ">
-        <nav className="flex h-full items-center content-container justify-between">
-          <LocalizedClientLink
-            href="/cart"
-            className="text-small-semi text-ui-fg-base flex items-center gap-x-2 uppercase flex-1 basis-0"
-            data-testid="back-to-cart-link"
-          >
-            <ChevronDown className="rotate-90" size={16} />
-            <span className="mt-px hidden small:block txt-compact-plus text-ui-fg-subtle hover:text-ui-fg-base ">
-              Back to shopping cart
-            </span>
-            <span className="mt-px block small:hidden txt-compact-plus text-ui-fg-subtle hover:text-ui-fg-base">
-              Back
-            </span>
-          </LocalizedClientLink>
-          <LocalizedClientLink
-            href="/"
-            className="txt-compact-xlarge-plus text-ui-fg-subtle hover:text-ui-fg-base uppercase"
-            data-testid="store-link"
-          >
-            Medusa Store
-          </LocalizedClientLink>
-          <div className="flex-1 basis-0" />
-        </nav>
+      <Nav
+        logoUrl={uiConfig?.logo_url}
+        getStartedUrl={uiConfig?.get_started_url}
+        navLinks={uiConfig?.nav_links}
+        clinicName={tenantDomain || host}
+      />
+      <div className="relative" data-testid="checkout-container">
+        {children}
       </div>
-      <div className="relative" data-testid="checkout-container">{children}</div>
-      <div className="py-4 w-full flex items-center justify-center">
-        <MedusaCTA />
-      </div>
+      <Footer
+        footerLinks={uiConfig?.footer_links}
+        bottomLinks={uiConfig?.bottom_links}
+        logoUrl={uiConfig?.logo_url}
+        clinicName={tenantDomain || host}
+        contactPhone={uiConfig?.contact_phone}
+        contactEmail={uiConfig?.contact_email}
+        contactAddress={uiConfig?.contact_address}
+        socialLinks={uiConfig?.social_links}
+        certificationImageUrl={uiConfig?.certification_image_url}
+      />
     </div>
   )
 }

@@ -11,9 +11,6 @@ type PaymentWrapperProps = {
   children: React.ReactNode
 }
 
-const BACKEND = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
-const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
-
 const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children }) => {
   const [stripePromise, setStripePromise] = useState<Promise<any> | null>(null)
   const [stripeKey, setStripeKey] = useState<string | undefined>(undefined)
@@ -22,27 +19,14 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children }) => {
   useEffect(() => {
     const loadClinicStripeKey = async () => {
       try {
-        const domain = window.location.hostname +
-          (window.location.port ? `:${window.location.port}` : "")
-
-        const res = await fetch(
-          `${BACKEND}/store/clinics/tenant-config`, // Updated to your actual config endpoint
-          { 
-            headers: { 
-              "host": domain,
-              "x-publishable-api-key": PUB_KEY 
-            } 
-          }
-        )
-
+        // Call our own Next.js API route — it can read the host header correctly
+        // (browsers block setting 'host' directly in client-side fetch)
+        const res = await fetch("/api/tenant-stripe-key")
         if (res.ok) {
           const data = await res.json()
-          // Accessing the key from your UI Config object
-          const dbKey = data.tenant?.ui_config?.stripe_publishable_key
-          
-          if (dbKey) {
-            setStripeKey(dbKey)
-            setStripePromise(loadStripe(dbKey))
+          if (data?.stripeKey) {
+            setStripeKey(data.stripeKey)
+            setStripePromise(loadStripe(data.stripeKey))
             return
           }
         }
@@ -50,10 +34,10 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children }) => {
         console.error("Failed to load dynamic stripe key", err)
       }
 
-      // Fallback to environment variables
+      // Fallback to environment variable
       const fallbackKey = process.env.NEXT_PUBLIC_STRIPE_KEY ||
         process.env.NEXT_PUBLIC_MEDUSA_PAYMENTS_PUBLISHABLE_KEY
-      
+
       if (fallbackKey) {
         setStripeKey(fallbackKey)
         setStripePromise(loadStripe(fallbackKey))
@@ -71,7 +55,10 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children }) => {
     isStripeLike(paymentSession?.provider_id) &&
     !!paymentSession?.data?.client_secret
 
-  if (isStripeSession && loading) {
+  // Show spinner while fetching the Stripe key — regardless of whether
+  // the payment session exists yet. This prevents children rendering
+  // before stripePromise is ready, which causes the disabled button race.
+  if (loading) {
     return (
       <div className="w-full h-40 flex items-center justify-center border rounded-lg bg-gray-50 border-dashed">
         <div className="flex flex-col items-center gap-2">

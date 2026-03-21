@@ -6,7 +6,7 @@
 
 import { Radio, RadioGroup } from "@headlessui/react"
 import { isStripeLike, paymentInfoMap } from "@lib/constants"
-import { initiatePaymentSession, setShippingMethod, saveShippingAddress } from "@lib/data/cart"
+import { initiatePaymentSession, setShippingMethod, saveShippingAddress, retrieveCart } from "@lib/data/cart"
 import { calculatePriceForShippingOption } from "@lib/data/fulfillment"
 import { convertToLocale } from "@lib/util/money"
 import { Loader } from "@medusajs/icons"
@@ -14,6 +14,7 @@ import { HttpTypes } from "@medusajs/types"
 import { clx, useToggleState } from "@medusajs/ui"
 import ErrorMessage from "@modules/checkout/components/error-message"
 import PaymentButton from "@modules/checkout/components/payment-button"
+import PaymentWrapper from "@modules/checkout/components/payment-wrapper"
 import { StripeCardContainer } from "@modules/checkout/components/payment-container"
 import MedusaRadio from "@modules/common/components/radio"
 import ShippingAddress from "@modules/checkout/components/shipping-address"
@@ -90,12 +91,15 @@ export default function SinglePageCheckout({
     setShippingLoading(true)
     setShippingMethodId(id)
     await setShippingMethod({ cartId: cart.id, shippingMethodId: id })
+      .then(() => retrieveCart(undefined, "*shipping_methods").then(fc => { if (fc) setLiveCart(prev => ({ ...prev, shipping_methods: fc.shipping_methods })) }))
       .catch(err => setShippingError(err.message))
       .finally(() => setShippingLoading(false))
   }
 
   // ── Payment ────────────────────────────────────────────────────────
-  const activeSession = cart.payment_collection?.payment_sessions?.find(
+  const [liveCart, setLiveCart] = useState<HttpTypes.StoreCart>(cart)
+  const [paymentLoading, setPaymentLoading] = useState(false)
+  const activeSession = liveCart.payment_collection?.payment_sessions?.find(
     (s: any) => s.status === "pending"
   )
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(
@@ -111,14 +115,30 @@ export default function SinglePageCheckout({
     if (activeSession) { paymentInitialized.current = true; return }
     if (!selectedPaymentMethod || !isStripeLike(selectedPaymentMethod)) return
     paymentInitialized.current = true
-    initiatePaymentSession(cart, { provider_id: selectedPaymentMethod }).catch(() => {})
+    setPaymentLoading(true)
+    initiatePaymentSession(liveCart, { provider_id: selectedPaymentMethod })
+      .then(() => retrieveCart(
+        undefined,
+        "*payment_collection, *payment_collection.payment_sessions, *shipping_methods"
+      ))
+      .then((freshCart) => { if (freshCart) setLiveCart(freshCart) })
+      .catch(() => {})
+      .finally(() => setPaymentLoading(false))
   }, [])
 
   const handlePaymentMethod = async (method: string) => {
     setPaymentError(null)
     setSelectedPaymentMethod(method)
     if (isStripeLike(method)) {
-      await initiatePaymentSession(cart, { provider_id: method }).catch(err => setPaymentError(err.message))
+      setPaymentLoading(true)
+      await initiatePaymentSession(liveCart, { provider_id: method })
+        .catch(err => { setPaymentError(err.message); return null })
+      const freshCart = await retrieveCart(
+        undefined,
+        "*payment_collection, *payment_collection.payment_sessions, *shipping_methods"
+      ).catch(() => null)
+      if (freshCart) setLiveCart(freshCart)
+      setPaymentLoading(false)
     }
   }
 
@@ -126,17 +146,18 @@ export default function SinglePageCheckout({
   const [consentTerms, setConsentTerms] = useState(false)
   const [consentPrivacy, setConsentPrivacy] = useState(false)
 
-  const cartAny = cart as any
+  const cartAny = liveCart as any
   const paidByGiftcard = cartAny?.gift_cards?.length > 0 && cartAny?.total === 0
 
   const canPlaceOrder =
     addressComplete &&
-    (cart.shipping_methods?.length ?? 0) > 0 &&
+    (liveCart.shipping_methods?.length ?? 0) > 0 &&
     (paidByGiftcard || (activeSession && (isStripeLike(selectedPaymentMethod) ? cardComplete : true))) &&
     consentTerms &&
     consentPrivacy
 
   return (
+    <PaymentWrapper cart={liveCart}>
     <div className="w-full flex flex-col gap-y-8">
 
       {/* ── SECTION 1: Shipping Address ── */}
@@ -207,36 +228,47 @@ export default function SinglePageCheckout({
       {/* ── SECTION 3: Payment ── */}
       <section className="bg-white">
         <h2 className="text-3xl-regular font-semibold mb-6">Payment</h2>
-        {!paidByGiftcard && availablePaymentMethods.length > 0 && (
-          <RadioGroup value={selectedPaymentMethod} onChange={handlePaymentMethod}>
-            {availablePaymentMethods.map(method => (
-              <div key={method.id}>
-                {isStripeLike(method.id) ? (
-                  <StripeCardContainer
-                    paymentProviderId={method.id}
-                    selectedPaymentOptionId={selectedPaymentMethod}
-                    paymentInfoMap={paymentInfoMap}
-                    setCardBrand={setCardBrand}
-                    setError={setPaymentError}
-                    setCardComplete={setCardComplete}
-                  />
-                ) : (
-                  <div
-                    className={clx(
-                      "flex items-center gap-x-4 cursor-pointer py-4 border rounded-lg px-6 mb-2",
-                      { "border-ui-border-interactive": method.id === selectedPaymentMethod }
-                    )}
-                    onClick={() => handlePaymentMethod(method.id)}
-                  >
-                    <MedusaRadio checked={method.id === selectedPaymentMethod} />
-                    <span>{paymentInfoMap[method.id]?.title || method.id}</span>
-                  </div>
-                )}
+          {paymentLoading ? (
+            <div className="w-full h-24 flex items-center justify-center border rounded-lg bg-gray-50 border-dashed">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-xs text-gray-500 font-medium">Setting up payment...</p>
               </div>
-            ))}
-          </RadioGroup>
-        )}
-        {paidByGiftcard && <p className="text-ui-fg-subtle text-sm">Paying with gift card</p>}
+            </div>
+          ) : (
+            <>
+              {!paidByGiftcard && availablePaymentMethods.length > 0 && (
+                <RadioGroup value={selectedPaymentMethod} onChange={handlePaymentMethod}>
+                  {availablePaymentMethods.map(method => (
+                    <div key={method.id}>
+                      {isStripeLike(method.id) ? (
+                        <StripeCardContainer
+                          paymentProviderId={method.id}
+                          selectedPaymentOptionId={selectedPaymentMethod}
+                          paymentInfoMap={paymentInfoMap}
+                          setCardBrand={setCardBrand}
+                          setError={setPaymentError}
+                          setCardComplete={setCardComplete}
+                        />
+                      ) : (
+                        <div
+                          className={clx(
+                            "flex items-center gap-x-4 cursor-pointer py-4 border rounded-lg px-6 mb-2",
+                            { "border-ui-border-interactive": method.id === selectedPaymentMethod }
+                          )}
+                          onClick={() => handlePaymentMethod(method.id)}
+                        >
+                          <MedusaRadio checked={method.id === selectedPaymentMethod} />
+                          <span>{paymentInfoMap[method.id]?.title || method.id}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </RadioGroup>
+              )}
+              {paidByGiftcard && <p className="text-ui-fg-subtle text-sm">Paying with gift card</p>}
+            </>
+          )}
         {paymentError && <ErrorMessage error={paymentError} />}
         <hr className="mt-8" />
       </section>
@@ -281,7 +313,7 @@ export default function SinglePageCheckout({
             <p className="font-medium mb-1">Before placing your order, please complete:</p>
             <ul className="list-disc list-inside space-y-1">
               {!addressComplete && <li>Shipping address</li>}
-              {(cart.shipping_methods?.length ?? 0) === 0 && <li>Delivery method</li>}
+              {(liveCart.shipping_methods?.length ?? 0) === 0 && <li>Delivery method</li>}
               {!paidByGiftcard && !activeSession && <li>Payment details</li>}
               {isStripeLike(selectedPaymentMethod) && !cardComplete && activeSession && <li>Card details</li>}
               {!consentTerms && <li>Accept terms and conditions</li>}
@@ -292,15 +324,17 @@ export default function SinglePageCheckout({
 
         <div className={!canPlaceOrder ? "opacity-50 pointer-events-none" : ""}>
           {activeSession ? (
-            <div onClick={async () => {
-              if (addressFormRef.current) {
-                const formData = new FormData(addressFormRef.current)
-                if (sameAsBilling) formData.set("same_as_billing", "on")
-                await saveShippingAddress(formData)
-              }
-            }}>
-            <PaymentButton cart={cart} data-testid="submit-order-button" />
-            </div>
+            <PaymentButton
+              cart={liveCart}
+              data-testid="submit-order-button"
+              onBeforeSubmit={async () => {
+                if (addressFormRef.current) {
+                  const formData = new FormData(addressFormRef.current)
+                  if (sameAsBilling) formData.set("same_as_billing", "on")
+                  await saveShippingAddress(formData)
+                }
+              }}
+            />
             ) : (
             <button disabled className="w-full rounded-lg bg-gray-300 text-white py-3 font-semibold cursor-not-allowed">
               Place order
@@ -310,5 +344,6 @@ export default function SinglePageCheckout({
       </section>
 
     </div>
+    </PaymentWrapper>
   )
 }

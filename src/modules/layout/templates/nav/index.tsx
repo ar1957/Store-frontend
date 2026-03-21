@@ -1,8 +1,9 @@
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import CartButton from "@modules/layout/components/cart-button"
 import { MagnifyingGlass } from "@medusajs/icons"
+import NavDropdown from "./nav-dropdown"
 
-type NavLink = { label: string; url: string; open_new_tab?: boolean }
+type NavLink = { label: string; url: string; open_new_tab?: boolean; children?: NavLink[] }
 
 type NavProps = {
   logoUrl?: string | null
@@ -20,7 +21,7 @@ export default function Nav({ logoUrl, getStartedUrl, navLinks, clinicName }: Na
     <header className="sticky top-0 inset-x-0 z-50 group">
       <nav className="content-container flex items-center justify-between py-0 bg-white border-b border-ui-border-base">
 
-        {/* Logo — no extra padding, tight to nav edges */}
+        {/* Logo */}
         <div className="flex items-center">
           <LocalizedClientLink href="/" className="flex items-center">
             {logoUrl ? (
@@ -38,34 +39,10 @@ export default function Nav({ logoUrl, getStartedUrl, navLinks, clinicName }: Na
           </LocalizedClientLink>
         </div>
 
-        {/* Nav Links — absolutely centered in the nav */}
+        {/* Nav Links — centered */}
         {links.length > 0 && (
           <div className="hidden lg:flex items-center gap-x-8 text-[11px] font-bold uppercase tracking-[0.2em] text-black absolute left-1/2 -translate-x-1/2">
-            {links.map((link, i) => {
-              const isExternal = link.url.startsWith("http://") || link.url.startsWith("https://")
-              if (isExternal || link.open_new_tab) {
-                return (
-                  <a
-                    key={i}
-                    href={link.url}
-                    target={link.open_new_tab ? "_blank" : undefined}
-                    rel={link.open_new_tab ? "noreferrer" : undefined}
-                    className="hover:opacity-70 transition-opacity whitespace-nowrap"
-                  >
-                    {link.label}
-                  </a>
-                )
-              }
-              return (
-                <LocalizedClientLink
-                  key={i}
-                  href={link.url}
-                  className="hover:opacity-70 transition-opacity whitespace-nowrap"
-                >
-                  {link.label}
-                </LocalizedClientLink>
-              )
-            })}
+            <NavDropdown links={links} />
           </div>
         )}
 
