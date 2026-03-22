@@ -7,7 +7,7 @@ interface EligibilityModalProps {
   productTitle: string
   clinicDomain: string
   onClose: () => void
-  onApproved: (eligibilityData: Record<string, any>) => void
+  onApproved: (eligibilityData: Record<string, any>) => Promise<void>
 }
 
 interface FormData {
@@ -167,23 +167,30 @@ export default function EligibilityModal({
       .join(", ")
     const allMeds = form.otherMedication ? `${meds}, ${form.otherMedication}` : meds
 
-    onApproved({
-      domain: clinicDomain,
-      productId,
-      locationId: form.locationId,
-      state: form.state,
-      dob: form.dob,
-      sex: form.sex,
-      pregnancy: form.sex === "female" ? form.pregnancy : null,
-      medicalHistory: form.hasMedicalConditions ? form.medicalConditions : "None",
-      allergies: form.hasAllergies ? form.allergies : "None",
-      currentMedications: allMeds || "None",
-      heightFt: form.heightFt,
-      heightIn: form.heightIn,
-      weightLbs: form.weightLbs,
-      goalWeightLbs: form.goalWeightLbs,
-      bmi: Math.round(bmi * 10) / 10,
-    })
+    setSubmitting(true)
+    setError("")
+    try {
+      await onApproved({
+        domain: clinicDomain,
+        productId,
+        locationId: form.locationId,
+        state: form.state,
+        dob: form.dob,
+        sex: form.sex,
+        pregnancy: form.sex === "female" ? form.pregnancy : null,
+        medicalHistory: form.hasMedicalConditions ? form.medicalConditions : "None",
+        allergies: form.hasAllergies ? form.allergies : "None",
+        currentMedications: allMeds || "None",
+        heightFt: form.heightFt,
+        heightIn: form.heightIn,
+        weightLbs: form.weightLbs,
+        goalWeightLbs: form.goalWeightLbs,
+        bmi: Math.round(bmi * 10) / 10,
+      })
+    } catch {
+      setError("Something went wrong. Please try again.")
+      setSubmitting(false)
+    }
   }
 
   const stepLabel = (form.sex === "female")
@@ -466,6 +473,29 @@ export default function EligibilityModal({
             <button onClick={next} disabled={submitting} style={s.btnPrimary}>
               {submitting ? "Submitting…" : step === totalSteps ? "Submit & Continue to View Cart" : "Continue"}
             </button>
+          </div>
+        )}
+
+        {/* Full-screen loading overlay while adding to cart */}
+        {submitting && (
+          <div style={{
+            position: "absolute", inset: 0, borderRadius: 16,
+            background: "rgba(255,255,255,0.92)",
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            gap: 16, zIndex: 10,
+          }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: "50%",
+              border: "4px solid #e5e7eb",
+              borderTopColor: "var(--color-primary, #111)",
+              animation: "mhc-modal-spin 0.8s linear infinite",
+            }} />
+            <style>{`@keyframes mhc-modal-spin { to { transform: rotate(360deg); } }`}</style>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#111" }}>Adding to cart…</div>
+            <div style={{ fontSize: 13, color: "#6b7280", textAlign: "center", maxWidth: 240 }}>
+              Please wait while we prepare your cart.
+            </div>
           </div>
         )}
 

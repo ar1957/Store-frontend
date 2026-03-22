@@ -86,6 +86,13 @@ export default function SinglePageCheckout({
     }
   }, [])
 
+  // Auto-select the only shipping option if none is selected yet
+  useEffect(() => {
+    if (availableShippingMethods.length === 1 && !shippingMethodId) {
+      handleSetShipping(availableShippingMethods[0].id)
+    }
+  }, [availableShippingMethods.length])
+
   const handleSetShipping = async (id: string) => {
     setShippingError(null)
     setShippingLoading(true)
@@ -148,11 +155,14 @@ export default function SinglePageCheckout({
 
   const cartAny = liveCart as any
   const paidByGiftcard = cartAny?.gift_cards?.length > 0 && cartAny?.total === 0
+  // Promo code (or any discount) that zeroes out the total also needs no payment
+  const zeroTotal = (cartAny?.total ?? 1) === 0
+  const noPaymentNeeded = paidByGiftcard || zeroTotal
 
   const canPlaceOrder =
     addressComplete &&
     (liveCart.shipping_methods?.length ?? 0) > 0 &&
-    (paidByGiftcard || (activeSession && (isStripeLike(selectedPaymentMethod) ? cardComplete : true))) &&
+    (noPaymentNeeded || (activeSession && (isStripeLike(selectedPaymentMethod) ? cardComplete : true))) &&
     consentTerms &&
     consentPrivacy
 
@@ -237,7 +247,13 @@ export default function SinglePageCheckout({
             </div>
           ) : (
             <>
-              {!paidByGiftcard && availablePaymentMethods.length > 0 && (
+              {zeroTotal && !paidByGiftcard && (
+                <div className="flex items-center gap-x-2 py-3 px-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                  <span>✓</span>
+                  <span>Your promotion code covers the full order — no payment required.</span>
+                </div>
+              )}
+              {!noPaymentNeeded && availablePaymentMethods.length > 0 && (
                 <RadioGroup value={selectedPaymentMethod} onChange={handlePaymentMethod}>
                   {availablePaymentMethods.map(method => (
                     <div key={method.id}>
@@ -314,8 +330,8 @@ export default function SinglePageCheckout({
             <ul className="list-disc list-inside space-y-1">
               {!addressComplete && <li>Shipping address</li>}
               {(liveCart.shipping_methods?.length ?? 0) === 0 && <li>Delivery method</li>}
-              {!paidByGiftcard && !activeSession && <li>Payment details</li>}
-              {isStripeLike(selectedPaymentMethod) && !cardComplete && activeSession && <li>Card details</li>}
+              {!paidByGiftcard && !activeSession && !zeroTotal && <li>Payment details</li>}
+              {isStripeLike(selectedPaymentMethod) && !cardComplete && activeSession && !zeroTotal && <li>Card details</li>}
               {!consentTerms && <li>Accept terms and conditions</li>}
               {!consentPrivacy && <li>Consent to privacy policy and telehealth terms</li>}
             </ul>
@@ -323,9 +339,10 @@ export default function SinglePageCheckout({
         )}
 
         <div className={!canPlaceOrder ? "opacity-50 pointer-events-none" : ""}>
-          {activeSession ? (
+          {(activeSession || noPaymentNeeded) ? (
             <PaymentButton
               cart={liveCart}
+              noPaymentNeeded={noPaymentNeeded}
               data-testid="submit-order-button"
               onBeforeSubmit={async () => {
                 // Save address only if not already complete on the server

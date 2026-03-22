@@ -94,7 +94,22 @@ export default function ProductActions({
   const searchParams = useSearchParams()
 
   const [options, setOptions] = useState<Record<string, string | undefined>>({})
-  const [isAdding, setIsAdding] = useState(false)
+  const [isAdding, setIsAdding] = useState(() =>
+    typeof window !== "undefined" && sessionStorage.getItem("mhc_adding_to_cart") === "1"
+  )
+
+  // If we remounted on the product page with the flag set, it means navigation
+  // was cancelled or failed — clear the lock so the button works again
+  useEffect(() => {
+    if (sessionStorage.getItem("mhc_adding_to_cart") === "1") {
+      // Give router.push a moment to fire; if we're still here after 3s, clear it
+      const t = setTimeout(() => {
+        sessionStorage.removeItem("mhc_adding_to_cart")
+        setIsAdding(false)
+      }, 3000)
+      return () => clearTimeout(t)
+    }
+  }, [])
   const [showEligibility, setShowEligibility] = useState(false)
   const [requiresEligibility, setRequiresEligibility] = useState(false)
   const [eligibilityChecked, setEligibilityChecked] = useState(false)
@@ -224,6 +239,9 @@ export default function ProductActions({
   // Standard add to cart (used after eligibility is cleared)
   const handleAddToCart = async () => {
     if (!selectedVariant?.id) return null
+    // Guard against re-entry after revalidateTag causes component remount
+    if (sessionStorage.getItem("mhc_adding_to_cart") === "1") return null
+    sessionStorage.setItem("mhc_adding_to_cart", "1")
     setIsAdding(true)
     try {
       await addToCart({
@@ -232,7 +250,9 @@ export default function ProductActions({
         countryCode,
       })
       router.push(`/${countryCode}/cart`)
-    } finally {
+      // don't clear the flag or stop spinner — navigation takes over
+    } catch {
+      sessionStorage.removeItem("mhc_adding_to_cart")
       setIsAdding(false)
     }
   }
@@ -251,7 +271,6 @@ export default function ProductActions({
 
   // After eligibility modal completes — save answers to cart metadata then add to cart
   const handleEligibilityApproved = async (eligibilityData: Record<string, any>) => {
-    setShowEligibility(false)
     setIsAdding(true)
 
     try {

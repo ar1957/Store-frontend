@@ -37,6 +37,11 @@ button[class*="shadow-buttons-"] {
   font-size: 14px !important;
 }
 
+/* Force consistent font size on ALL buttons site-wide */
+button {
+  font-size: 14px !important;
+}
+
 @layer utilities {
   /* Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {

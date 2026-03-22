@@ -12,6 +12,7 @@ type PaymentButtonProps = {
   cart: HttpTypes.StoreCart
   "data-testid": string
   disabled?: boolean
+  noPaymentNeeded?: boolean
   onBeforeSubmit?: () => Promise<void>
 }
 
@@ -70,9 +71,21 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
   cart,
   "data-testid": dataTestId,
   disabled = false,
+  noPaymentNeeded = false,
   onBeforeSubmit,
 }) => {
   const notReady = !cart || disabled
+
+  // Zero-total order (promo/gift card covers everything) — just place order directly
+  if (noPaymentNeeded) {
+    return (
+      <ZeroTotalPaymentButton
+        notReady={notReady}
+        data-testid={dataTestId}
+        onBeforeSubmit={onBeforeSubmit}
+      />
+    )
+  }
 
   const paymentSession = cart.payment_collection?.payment_sessions?.find(
     (s) => s.status === "pending"
@@ -188,6 +201,53 @@ const StripePaymentButton = ({
         onClick={handlePayment}
         size="large"
         isLoading={submitting}
+        className="w-full"
+        data-testid={dataTestId}
+      >
+        Place order
+      </Button>
+      {errorMessage && <ErrorMessage error={errorMessage} />}
+    </>
+  )
+}
+
+// Zero-total orders (promo code covers full amount) — no payment session needed
+const ZeroTotalPaymentButton = ({
+  notReady,
+  "data-testid": dataTestId,
+  onBeforeSubmit,
+}: {
+  notReady: boolean
+  "data-testid"?: string
+  onBeforeSubmit?: () => Promise<void>
+}) => {
+  const [submitting, setSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const handlePayment = async () => {
+    if (submitting) return
+    setSubmitting(true)
+    if (onBeforeSubmit) {
+      try { await onBeforeSubmit() } catch { /* non-fatal */ }
+    }
+    await placeOrder()
+      .catch((err) => {
+        if (err?.message?.includes("409") || err?.message?.includes("conflicted") || err?.message?.includes("already being completed")) {
+          return
+        }
+        setErrorMessage(err.message)
+        setSubmitting(false)
+      })
+  }
+
+  return (
+    <>
+      {submitting && <ProcessingOverlay />}
+      <Button
+        disabled={notReady || submitting}
+        isLoading={submitting}
+        onClick={handlePayment}
+        size="large"
         className="w-full"
         data-testid={dataTestId}
       >
