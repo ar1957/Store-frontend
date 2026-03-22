@@ -17,23 +17,11 @@ import EligibilityModal from "@modules/products/components/eligibility-modal"
 const BACKEND = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
 const DEFAULT_PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
-// Tenant key map — mirrors tenants.ts so client-side fetches use correct key
-const TENANT_KEYS: Record<string, string> = {
-  "localhost:8000":                  "pk_0d04e5f39f21233de48aae0826522a81a13223024535549c62bdeca3a904b54d",
-  "spaderx.local:8000":             "pk_c05a977ce3aa7edbe18eb8627d240cc79e3b85a56a77758e5852fe419a796d9b",
-  "spaderx.com":                    "pk_c05a977ce3aa7edbe18eb8627d240cc79e3b85a56a77758e5852fe419a796d9b",
-  "myclassywellness.local:8000":    "pk_9b161fb22ef604acba9c3a9f5559297c57f1de3dba630653e356157984961374",
-  "myclassywellness.com":           "pk_9b161fb22ef604acba9c3a9f5559297c57f1de3dba630653e356157984961374",
-  "contour-wellness.local:8000":    "pk_f034439d37fa0d6da706d0eccd8ce5499532b67ba17af9bdf64fefe864abefdb",
-  "contour-wellness.com":           "pk_f034439d37fa0d6da706d0eccd8ce5499532b67ba17af9bdf64fefe864abefdb",
-}
-
 function getTenantPubKey(): string {
   if (typeof window === "undefined") return DEFAULT_PUB_KEY
-  // Prefer key injected by server middleware (always correct)
+  // Prefer key injected by server middleware (always correct for current tenant)
   if ((window as any).__TENANT_API_KEY__) return (window as any).__TENANT_API_KEY__
-  // Fallback to hardcoded map
-  return TENANT_KEYS[window.location.host] || DEFAULT_PUB_KEY
+  return DEFAULT_PUB_KEY
 }
 
 // Session key for caching eligibility answers across products
@@ -118,8 +106,10 @@ export default function ProductActions({
   const countryCode = (useParams().countryCode as string) || "us"
 
   // Get the domain for tenant detection
+  // Prefer __TENANT_DOMAIN__ injected by middleware (correct for all clinics including new ones)
+  // Fall back to window.location.hostname for local dev
   const domain = typeof window !== "undefined"
-    ? window.location.hostname + (window.location.port ? `:${window.location.port}` : "")
+    ? ((window as any).__TENANT_DOMAIN__ || window.location.hostname + (window.location.port ? `:${window.location.port}` : ""))
     : "localhost:8000"
 
   // Single cart check that handles all cases:
@@ -159,23 +149,25 @@ export default function ProductActions({
   }, [initialCartId])
 
   // Check if this product requires eligibility screening
+  // Uses a Next.js API proxy to avoid CORS issues with direct browser→backend calls
   useEffect(() => {
     if (eligibilityChecked) return
     const checkEligibility = async () => {
+      const pubKey = getTenantPubKey()
+      // Use same-origin proxy route — no CORS issues
+      const url = `/api/eligibility-check?domain=${encodeURIComponent(domain)}&productId=${encodeURIComponent(product.id)}`
       try {
-        const res = await fetch(
-          `${BACKEND}/store/eligibility/check?domain=${domain}&productId=${product.id}`,
-          { headers: { "x-publishable-api-key": getTenantPubKey() } }
-        )
+        const res = await fetch(url, { headers: { "x-publishable-api-key": pubKey } })
+        const data = await res.json()
         if (res.ok) {
-          const data = await res.json()
           const needs = data.requiresEligibility === true
           setRequiresEligibility(needs)
           if (needs && getCachedEligibility(initialCartId || undefined)) {
             setAlreadyScreened(true)
           }
         }
-      } catch {
+      } catch (e) {
+        console.error("[EligCheck] fetch error", e)
         setRequiresEligibility(false)
       } finally {
         setEligibilityChecked(true)
@@ -262,8 +254,15 @@ export default function ProductActions({
     if (requiresEligibility && !alreadyScreened) {
       setShowEligibility(true)
     } else if (requiresEligibility && alreadyScreened) {
-      // Already screened — just add to cart directly, no need to re-save metadata
-      handleAddToCart()
+      // Already screened — re-save cached eligibility to cart then add
+      const cached = getCachedEligibility(initialCartId || undefined)
+      if (cached) {
+        handleEligibilityApproved(cached)
+      } else {
+        // Cache gone — show modal again
+        setAlreadyScreened(false)
+        setShowEligibility(true)
+      }
     } else {
       handleAddToCart()
     }
@@ -305,8 +304,8 @@ export default function ProductActions({
         return
       }
 
-      // 3. Save eligibility answers to cart metadata via backend
-      const res = await fetch(`${BACKEND}/store/carts/eligibility-metadata`, {
+      // 3. Save eligibility answers to cart metadata via proxy (avoids CORS)
+      const res = await fetch(`/api/eligibility-metadata`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

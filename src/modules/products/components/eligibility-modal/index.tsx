@@ -62,23 +62,11 @@ function calcBMI(ft: number, inches: number, lbs: number): number {
   return (lbs / (totalInches * totalInches)) * 703
 }
 
-const BACKEND = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
-
-const TENANT_KEYS: Record<string, string> = {
-  "localhost:8000":               "pk_0d04e5f39f21233de48aae0826522a81a13223024535549c62bdeca3a904b54d",
-  "spaderx.local:8000":          "pk_c05a977ce3aa7edbe18eb8627d240cc79e3b85a56a77758e5852fe419a796d9b",
-  "spaderx.com":                 "pk_c05a977ce3aa7edbe18eb8627d240cc79e3b85a56a77758e5852fe419a796d9b",
-  "myclassywellness.local:8000": "pk_9b161fb22ef604acba9c3a9f5559297c57f1de3dba630653e356157984961374",
-  "myclassywellness.com":        "pk_9b161fb22ef604acba9c3a9f5559297c57f1de3dba630653e356157984961374",
-  "contour-wellness.local:8000": "pk_f034439d37fa0d6da706d0eccd8ce5499532b67ba17af9bdf64fefe864abefdb",
-  "contour-wellness.com":        "pk_f034439d37fa0d6da706d0eccd8ce5499532b67ba17af9bdf64fefe864abefdb",
-}
 function getPublishableKey(): string {
   if (typeof window === "undefined") return process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
   if ((window as any).__TENANT_API_KEY__) return (window as any).__TENANT_API_KEY__
-  return TENANT_KEYS[window.location.host] || process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
+  return process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 }
-const PUB_KEY = getPublishableKey()
 
 export default function EligibilityModal({
   productId, productTitle, clinicDomain, onClose, onApproved,
@@ -94,11 +82,16 @@ export default function EligibilityModal({
   const totalSteps = form.sex === "female" ? 7 : 6
 
   useEffect(() => {
-    fetch(`${BACKEND}/store/eligibility/states?domain=${clinicDomain}`, {
-      headers: { "x-publishable-api-key": PUB_KEY }
+    fetch(`/api/eligibility-states?domain=${encodeURIComponent(clinicDomain)}`, {
+      headers: { "x-publishable-api-key": getPublishableKey() }
     })
       .then(r => r.json())
       .then(d => {
+        if (d.message && !d.locations) {
+          console.error("[EligStates] backend error:", d.message)
+          setError(`Failed to load states: ${d.message}`)
+          return
+        }
         const seen = new Set<string>()
         const unique = (d.locations || []).filter((l: any) => {
           if (seen.has(l.state)) return false
@@ -106,8 +99,13 @@ export default function EligibilityModal({
           return true
         })
         setStates(unique)
+        if (unique.length === 0) setError("")
       })
-      .catch(() => setError("Failed to load available states"))
+      .catch(err => {
+        console.error("[EligStates] fetch error:", err)
+        setStates([])
+        setError("")
+      })
       .finally(() => setLoadingStates(false))
   }, [clinicDomain])
 
@@ -246,6 +244,18 @@ export default function EligibilityModal({
               <p style={s.subtitle}>We can only provide service in states where our clinic is licensed.</p>
               {loadingStates ? (
                 <div style={s.loading}>Loading available states…</div>
+              ) : states.length === 0 ? (
+                <div>
+                  <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>
+                    Please enter your state to continue.
+                  </p>
+                  <input
+                    style={s.input}
+                    placeholder="e.g. California"
+                    value={form.state}
+                    onChange={e => setForm(p => ({ ...p, state: e.target.value, locationId: 0 }))}
+                  />
+                </div>
               ) : (
                 <div style={s.stateGrid}>
                   {states.map(l => (

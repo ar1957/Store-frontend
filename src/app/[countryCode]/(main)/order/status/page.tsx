@@ -12,9 +12,6 @@ import { useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 
-const BACKEND = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
-const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
-
 const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: string }> = {
   pending_provider:    { label: "Pending Provider Clearance", color: "#92400e", bg: "#fef3c7", icon: "🩺" },
   pending_md_review:   { label: "Pending Physician Review",   color: "#1e40af", bg: "#dbeafe", icon: "👨‍⚕️" },
@@ -46,6 +43,7 @@ export default function OrderLookupPage() {
   const [error, setError] = useState("")
   const [connectingId, setConnectingId] = useState<string | null>(null)
   const [roomUrls, setRoomUrls] = useState<Record<string, string>>({})
+  const [connectMsg, setConnectMsg] = useState<Record<string, string>>({})
 
   const handleSearch = async () => {
     if (!input.trim()) return
@@ -58,8 +56,9 @@ export default function OrderLookupPage() {
         ? `email=${encodeURIComponent(input.trim())}`
         : `orderId=${encodeURIComponent(input.trim())}`
 
-      const res = await fetch(`${BACKEND}/store/orders/lookup?${param}`, {
-        headers: { "x-publishable-api-key": PUB_KEY },
+      const pubKey = typeof window !== "undefined" ? ((window as any).__TENANT_API_KEY__ || "") : ""
+      const res = await fetch(`/api/orders-lookup?${param}`, {
+        headers: { "x-publishable-api-key": pubKey },
       })
 
       const data = await res.json()
@@ -84,16 +83,21 @@ export default function OrderLookupPage() {
   const handleConnect = async (order: OrderResult) => {
     if (!order.gfeId) return
 
-    // If we already have the URL, open it
-    if (roomUrls[order.gfeId]) {
-      window.open(roomUrls[order.gfeId], "_blank")
+    // Use virtualRoomUrl from lookup if available
+    const url = order.virtualRoomUrl || roomUrls[order.gfeId]
+    if (url) {
+      window.open(url, "_blank")
       return
     }
 
+    // Fallback: POST to refresh status and get URL
     setConnectingId(order.gfeId)
+    setConnectMsg(prev => ({ ...prev, [order.gfeId!]: "" }))
     try {
-      const res = await fetch(`${BACKEND}/store/orders/${order.gfeId}/status`, {
-        headers: { "x-publishable-api-key": PUB_KEY },
+      const pubKey = typeof window !== "undefined" ? ((window as any).__TENANT_API_KEY__ || "") : ""
+      const res = await fetch(`/api/order-status/${order.gfeId}`, {
+        method: "POST",
+        headers: { "x-publishable-api-key": pubKey },
       })
       if (res.ok) {
         const data = await res.json()
@@ -103,7 +107,11 @@ export default function OrderLookupPage() {
           return
         }
       }
-    } catch {}
+      // No room URL yet — provider hasn't opened the session
+      setConnectMsg(prev => ({ ...prev, [order.gfeId!]: "Your provider hasn't opened the session yet. Please check back shortly." }))
+    } catch {
+      setConnectMsg(prev => ({ ...prev, [order.gfeId!]: "Could not connect. Please try again." }))
+    }
     finally { setConnectingId(null) }
   }
 
@@ -193,6 +201,12 @@ export default function OrderLookupPage() {
 
                   {order.providerName && (
                     <div style={s.detail}>Provider: <strong>{order.providerName}</strong></div>
+                  )}
+
+                  {order.gfeId && connectMsg[order.gfeId] && (
+                    <div style={{ fontSize: 12, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, padding: "8px 12px", marginBottom: 8 }}>
+                      ⏳ {connectMsg[order.gfeId]}
+                    </div>
                   )}
 
                   {order.tracking && (

@@ -140,9 +140,12 @@ const StripePaymentButton = ({
 
   const onPaymentCompleted = async () => {
     await placeOrder()
-      .catch((err) => {
-        // 409 means cart is already being completed — treat as success and wait for redirect
+      .catch(async (err) => {
+        // 409 = already being completed — order exists, redirect to orders page
         if (err?.message?.includes("409") || err?.message?.includes("conflicted") || err?.message?.includes("already being completed")) {
+          await new Promise(r => setTimeout(r, 2000))
+          const cc = cart.shipping_address?.country_code?.toLowerCase() || "us"
+          window.location.href = `/${cc}/account/orders`
           return
         }
         setErrorMessage(err.message)
@@ -231,8 +234,10 @@ const ZeroTotalPaymentButton = ({
       try { await onBeforeSubmit() } catch { /* non-fatal */ }
     }
     await placeOrder()
-      .catch((err) => {
+      .catch(async (err) => {
         if (err?.message?.includes("409") || err?.message?.includes("conflicted") || err?.message?.includes("already being completed")) {
+          await new Promise(r => setTimeout(r, 2000))
+          window.location.href = "/us/account/orders"
           return
         }
         setErrorMessage(err.message)

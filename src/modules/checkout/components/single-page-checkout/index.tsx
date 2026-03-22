@@ -20,6 +20,7 @@ import MedusaRadio from "@modules/common/components/radio"
 import ShippingAddress from "@modules/checkout/components/shipping-address"
 import BillingAddress from "@modules/checkout/components/billing_address"
 import compareAddresses from "@lib/util/compare-addresses"
+import EligibilityModal from "@modules/products/components/eligibility-modal"
 import { useEffect, useRef, useState } from "react"
 
 type Props = {
@@ -153,6 +154,61 @@ export default function SinglePageCheckout({
   const [consentTerms, setConsentTerms] = useState(false)
   const [consentPrivacy, setConsentPrivacy] = useState(false)
 
+  // ── Eligibility gate ───────────────────────────────────────────────
+  // Check if eligibility data is present on the cart. If not, block order and show modal.
+  const cartMeta = (liveCart as any).metadata as Record<string, any> | null
+  const cartHasEligibility = !!(cartMeta?.eligibilityData || cartMeta?.locationId || cartMeta?.state)
+  const sessionHasEligibility = typeof window !== "undefined"
+    ? !!sessionStorage.getItem("mhc_eligibility_data")
+    : true // SSR: assume ok, will re-check client-side
+
+  const [eligibilityVerified, setEligibilityVerified] = useState<boolean>(true) // optimistic
+  const [showEligibilityModal, setShowEligibilityModal] = useState(false)
+  const [eligibilitySaving, setEligibilitySaving] = useState(false)
+
+  // On mount, check if eligibility is actually present
+  useEffect(() => {
+    const hasSession = !!sessionStorage.getItem("mhc_eligibility_data")
+    const hasMeta = !!(cartMeta?.eligibilityData || cartMeta?.locationId || cartMeta?.state)
+    setEligibilityVerified(hasSession || hasMeta)
+  }, [])
+
+  const clinicDomain = typeof window !== "undefined"
+    ? ((window as any).__TENANT_DOMAIN__ || window.location.hostname)
+    : ""
+
+  // First item in cart to use as product context for the modal
+  const firstItem = liveCart.items?.[0]
+  const firstProductId = (firstItem as any)?.product_id || (firstItem as any)?.variant?.product_id || ""
+  const firstProductTitle = (firstItem as any)?.product_title || (firstItem as any)?.title || "Your Product"
+
+  const handleEligibilityApproved = async (eligibilityData: Record<string, any>) => {
+    setEligibilitySaving(true)
+    try {
+      const pubKey = typeof window !== "undefined" ? ((window as any).__TENANT_API_KEY__ || "") : ""
+      await fetch(`/api/eligibility-metadata`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-publishable-api-key": pubKey,
+        },
+        body: JSON.stringify({ eligibilityData, cartId: liveCart.id }),
+      })
+      // Cache in sessionStorage
+      try {
+        sessionStorage.setItem("mhc_eligibility_data", JSON.stringify({ ...eligibilityData, cartId: liveCart.id }))
+      } catch {}
+      setEligibilityVerified(true)
+      setShowEligibilityModal(false)
+    } catch {
+      // Even if save fails, allow proceeding — data was entered
+      setEligibilityVerified(true)
+      setShowEligibilityModal(false)
+    } finally {
+      setEligibilitySaving(false)
+    }
+  }
+
   const cartAny = liveCart as any
   const paidByGiftcard = cartAny?.gift_cards?.length > 0 && cartAny?.total === 0
   // Promo code (or any discount) that zeroes out the total also needs no payment
@@ -164,9 +220,11 @@ export default function SinglePageCheckout({
     (liveCart.shipping_methods?.length ?? 0) > 0 &&
     (noPaymentNeeded || (activeSession && (isStripeLike(selectedPaymentMethod) ? cardComplete : true))) &&
     consentTerms &&
-    consentPrivacy
+    consentPrivacy &&
+    eligibilityVerified
 
   return (
+    <>
     <PaymentWrapper cart={liveCart}>
     <div className="w-full flex flex-col gap-y-8">
 
@@ -334,6 +392,17 @@ export default function SinglePageCheckout({
               {isStripeLike(selectedPaymentMethod) && !cardComplete && activeSession && !zeroTotal && <li>Card details</li>}
               {!consentTerms && <li>Accept terms and conditions</li>}
               {!consentPrivacy && <li>Consent to privacy policy and telehealth terms</li>}
+              {!eligibilityVerified && (
+                <li>
+                  Health eligibility screening —{" "}
+                  <button
+                    onClick={() => setShowEligibilityModal(true)}
+                    className="underline font-semibold text-amber-800 hover:text-amber-900"
+                  >
+                    Complete now
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
         )}
@@ -367,5 +436,17 @@ export default function SinglePageCheckout({
 
     </div>
     </PaymentWrapper>
+
+      {/* ── Eligibility modal — shown when eligibility data is missing at checkout ── */}
+      {showEligibilityModal && firstProductId && (
+        <EligibilityModal
+          productId={firstProductId}
+          productTitle={firstProductTitle}
+          clinicDomain={clinicDomain}
+          onClose={() => setShowEligibilityModal(false)}
+          onApproved={handleEligibilityApproved}
+        />
+      )}
+    </>
   )
 }

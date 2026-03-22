@@ -33,13 +33,10 @@ export default function VirtualRoomRedirect({ orderId, metadata }: Props) {
 
     const poll = async () => {
       try {
-        const BACKEND = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
-        // Use tenant-specific key: injected by middleware script tag, or cookie, or env fallback
         const PUB_KEY = (typeof window !== "undefined" && (window as any).__TENANT_API_KEY__)
-          || (typeof document !== "undefined" && document.cookie.match(/x-tenant-api-key=([^;]+)/)?.[1])
           || process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
-        const res = await fetch(`${BACKEND}/store/orders/${orderId}/gfe-status`, {
+        const res = await fetch(`/api/gfe-status/${orderId}`, {
           headers: { "x-publishable-api-key": PUB_KEY },
         })
 
@@ -59,6 +56,7 @@ export default function VirtualRoomRedirect({ orderId, metadata }: Props) {
       if (attempts < maxAttempts) {
         setTimeout(poll, 3000)
       } else {
+        // Stop polling but keep showing the waiting state — don't hide the component
         setChecking(false)
       }
     }
@@ -66,7 +64,19 @@ export default function VirtualRoomRedirect({ orderId, metadata }: Props) {
     setTimeout(poll, 3000) // Start polling after 3s delay
   }, [orderId, metadata])
 
-  if (!virtualRoomUrl && !checking) return null
+  if (!virtualRoomUrl && !checking) {
+    return (
+      <div style={s.box}>
+        <div style={s.spinner}>🩺</div>
+        <p style={s.text}>
+          Your consultation has been created. A provider will review your information shortly.
+          You can check back on your{" "}
+          <a href={`/order/status`} style={{ color: "var(--color-primary, #C9A84C)" }}>order status page</a>
+          {" "}for updates.
+        </p>
+      </div>
+    )
+  }
 
   if (checking) {
     return (
