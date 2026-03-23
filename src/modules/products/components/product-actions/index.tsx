@@ -116,34 +116,37 @@ export default function ProductActions({
   // 1. No cartId yet (SSR) — wait, do nothing
   // 2. Cart has items — validate cache against cartId, set alreadyScreened
   // 3. Cart empty or not found — clear cache
+  // NOTE: Only runs if there's cached eligibility data — no point fetching cart otherwise
   useEffect(() => {
     if (!initialCartId) return
+    // Fast path: if no cache exists, nothing to validate — skip the cart fetch entirely
+    const cached = getCachedEligibility(initialCartId)
+    if (!cached) {
+      setAlreadyScreened(false)
+      return
+    }
+    // Cache exists — validate it's still for a cart with items
     const checkCart = async () => {
       try {
-        const res = await fetch(`${BACKEND}/store/carts/${initialCartId}`, {
+        const res = await fetch(`/api/cart-check?cartId=${initialCartId}`, {
           headers: { "x-publishable-api-key": getTenantPubKey() },
-          credentials: "include",
         })
         if (!res.ok) {
-          // Cart gone (order placed) — clear cache
           sessionStorage.removeItem(ELIGIBILITY_SESSION_KEY)
           setAlreadyScreened(false)
-          setEligibilityChecked(false)
         } else {
           const data = await res.json()
-          const itemCount = data.cart?.items?.length ?? 0
-          if (itemCount === 0) {
-            // Empty cart — clear cache
+          if (!data.hasItems) {
             sessionStorage.removeItem(ELIGIBILITY_SESSION_KEY)
             setAlreadyScreened(false)
-            setEligibilityChecked(false)
           } else {
-            // Cart has items — check if cache is valid for this cart
-            const cached = getCachedEligibility(initialCartId)
-            setAlreadyScreened(!!cached)
+            setAlreadyScreened(true)
           }
         }
-      } catch {}
+      } catch {
+        // On error, trust the cache
+        setAlreadyScreened(true)
+      }
     }
     checkCart()
   }, [initialCartId])

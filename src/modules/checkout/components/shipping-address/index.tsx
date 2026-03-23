@@ -155,15 +155,16 @@ const ShippingAddress = ({
     address &&
       setFormData((prevState: Record<string, any>) => ({
         ...prevState,
-        "shipping_address.first_name": address?.first_name || "",
-        "shipping_address.last_name": address?.last_name || "",
-        "shipping_address.address_1": address?.address_1 || "",
+        // Only overwrite name fields if the incoming address actually has them
+        "shipping_address.first_name": address?.first_name || prevState["shipping_address.first_name"] || "",
+        "shipping_address.last_name": address?.last_name || prevState["shipping_address.last_name"] || "",
+        "shipping_address.address_1": address?.address_1 || prevState["shipping_address.address_1"] || "",
         // Keep city/zip that user typed — don't wipe them on cart updates
         "shipping_address.postal_code": prevState["shipping_address.postal_code"] || "",
         "shipping_address.city": prevState["shipping_address.city"] || "",
         "shipping_address.country_code": "us",
         // Province comes from eligibility useEffect — don't override it here
-        "shipping_address.phone": address?.phone || "",
+        "shipping_address.phone": address?.phone || prevState["shipping_address.phone"] || "",
       }))
 
     email &&

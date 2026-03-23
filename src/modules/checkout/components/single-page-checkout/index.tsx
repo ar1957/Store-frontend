@@ -21,7 +21,7 @@ import ShippingAddress from "@modules/checkout/components/shipping-address"
 import BillingAddress from "@modules/checkout/components/billing_address"
 import compareAddresses from "@lib/util/compare-addresses"
 import EligibilityModal from "@modules/products/components/eligibility-modal"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 type Props = {
   cart: HttpTypes.StoreCart
@@ -53,6 +53,10 @@ export default function SinglePageCheckout({
     address_1: cart.shipping_address?.address_1 || "",
     email: cart.email || "",
   })
+
+  const handleAddressFieldChange = useCallback((field: string, value: string) => {
+    setAddressFields(p => ({ ...p, [field]: value }))
+  }, [])
 
   const addressComplete = !!(
     (cart.shipping_address?.first_name || addressFields.first_name) &&
@@ -237,9 +241,7 @@ export default function SinglePageCheckout({
           checked={sameAsBilling}
           onChange={toggleSameAsBilling}
           cart={cart}
-          onFieldChange={(field: string, value: string) =>
-            setAddressFields(p => ({ ...p, [field]: value }))
-          }
+          onFieldChange={handleAddressFieldChange}
         />
         {!sameAsBilling && (
           <div className="mt-8">
