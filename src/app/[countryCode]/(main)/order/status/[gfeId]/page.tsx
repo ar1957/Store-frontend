@@ -10,7 +10,6 @@
 
 import { useEffect, useState, useCallback, use } from "react"
 
-const BACKEND = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
 const STATUS_STEPS = [
@@ -57,8 +56,9 @@ export default function OrderStatusPage({ params: paramsPromise }: { params: Pro
   const fetchStatus = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true)
     try {
-      const res = await fetch(`${BACKEND}/store/orders/${params.gfeId}/status`, {
-        headers: { "x-publishable-api-key": PUB_KEY },
+      const pubKey = typeof window !== "undefined" ? ((window as any).__TENANT_API_KEY__ || PUB_KEY) : PUB_KEY
+      const res = await fetch(`/api/order-status/${params.gfeId}`, {
+        headers: { "x-publishable-api-key": pubKey },
       })
       if (!res.ok) {
         const d = await res.json()
@@ -79,18 +79,16 @@ export default function OrderStatusPage({ params: paramsPromise }: { params: Pro
   const refreshFromProvider = async () => {
     setRefreshing(true)
     try {
-      // Step 1: Always re-fetch current status from DB first
       await fetchStatus()
 
-      // Step 2: Only call provider API if still pending_provider
       if (data?.status === "pending_provider") {
-        const res = await fetch(`${BACKEND}/store/orders/${params.gfeId}/status`, {
+        const pubKey = typeof window !== "undefined" ? ((window as any).__TENANT_API_KEY__ || PUB_KEY) : PUB_KEY
+        const res = await fetch(`/api/order-status/${params.gfeId}`, {
           method: "POST",
-          headers: { "x-publishable-api-key": PUB_KEY },
+          headers: { "x-publishable-api-key": pubKey },
         })
         const d = await res.json()
         if (d.status && d.status !== data?.status) {
-          // Status changed — re-fetch full data from DB
           await fetchStatus()
         }
       }

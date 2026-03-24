@@ -58,12 +58,12 @@ const ShippingAddress = ({
     "shipping_address.first_name": cart?.shipping_address?.first_name || "",
     "shipping_address.last_name": cart?.shipping_address?.last_name || "",
     "shipping_address.address_1": cart?.shipping_address?.address_1 || "",
-    "shipping_address.postal_code": "",
-    "shipping_address.city": "",
+    "shipping_address.postal_code": cart?.shipping_address?.postal_code || "",
+    "shipping_address.city": cart?.shipping_address?.city || "",
     "shipping_address.country_code": cart?.shipping_address?.country_code || "us",
-    "shipping_address.province": "",
+    "shipping_address.province": cart?.shipping_address?.province || "",
     "shipping_address.phone": cart?.shipping_address?.phone || "",
-    email: cart?.email || "",
+    email: cart?.email || customer?.email || "",
   })
 
   // ── Validation state (non-structural — doesn't affect form submission) ──
@@ -179,11 +179,9 @@ const ShippingAddress = ({
   useEffect(() => {
     if (hasInitialized.current) return
     hasInitialized.current = true
-    if (cart && cart.shipping_address) {
-      setFormAddress(cart?.shipping_address, cart?.email)
-    }
+    // Pre-fill customer email if cart has no email
     if (cart && !cart.email && customer?.email) {
-      setFormAddress(undefined, customer.email)
+      setFormData(p => ({ ...p, email: customer.email! }))
     }
   }, [])
 
