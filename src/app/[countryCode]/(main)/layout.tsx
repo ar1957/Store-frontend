@@ -145,9 +145,8 @@ export default async function PageLayout(props: { children: React.ReactNode }) {
           clinicName={tenantDomain || host}
         />
       </div>
-      {customer && cart && (
-        <CartMismatchBanner customer={customer} cart={cart} />
-      )}
+      {/* Cart transfer banner suppressed — transfer failures are non-critical
+          and the error message confuses users. Cart checkout works regardless. */}
       {cart && (
         <FreeShippingPriceNudge
           variant="popup"

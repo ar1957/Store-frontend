@@ -46,7 +46,6 @@ export default function SinglePageCheckout({
       : true
   )
 
-  // Track address fields for completeness check
   const [addressFields, setAddressFields] = useState({
     first_name: cart.shipping_address?.first_name || "",
     last_name: cart.shipping_address?.last_name || "",
@@ -159,18 +158,12 @@ export default function SinglePageCheckout({
   const [consentPrivacy, setConsentPrivacy] = useState(false)
 
   // ── Eligibility gate ───────────────────────────────────────────────
-  // Check if eligibility data is present on the cart. If not, block order and show modal.
   const cartMeta = (liveCart as any).metadata as Record<string, any> | null
-  const cartHasEligibility = !!(cartMeta?.eligibilityData || cartMeta?.locationId || cartMeta?.state)
-  const sessionHasEligibility = typeof window !== "undefined"
-    ? !!sessionStorage.getItem("mhc_eligibility_data")
-    : true // SSR: assume ok, will re-check client-side
 
-  const [eligibilityVerified, setEligibilityVerified] = useState<boolean>(true) // optimistic
+  const [eligibilityVerified, setEligibilityVerified] = useState<boolean>(true)
   const [showEligibilityModal, setShowEligibilityModal] = useState(false)
   const [eligibilitySaving, setEligibilitySaving] = useState(false)
 
-  // On mount, check if eligibility is actually present
   useEffect(() => {
     const hasSession = !!sessionStorage.getItem("mhc_eligibility_data")
     const hasMeta = !!(cartMeta?.eligibilityData || cartMeta?.locationId || cartMeta?.state)
@@ -181,7 +174,6 @@ export default function SinglePageCheckout({
     ? ((window as any).__TENANT_DOMAIN__ || window.location.hostname)
     : ""
 
-  // First item in cart to use as product context for the modal
   const firstItem = liveCart.items?.[0]
   const firstProductId = (firstItem as any)?.product_id || (firstItem as any)?.variant?.product_id || ""
   const firstProductTitle = (firstItem as any)?.product_title || (firstItem as any)?.title || "Your Product"
@@ -192,20 +184,15 @@ export default function SinglePageCheckout({
       const pubKey = typeof window !== "undefined" ? ((window as any).__TENANT_API_KEY__ || "") : ""
       await fetch(`/api/eligibility-metadata`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-publishable-api-key": pubKey,
-        },
+        headers: { "Content-Type": "application/json", "x-publishable-api-key": pubKey },
         body: JSON.stringify({ eligibilityData, cartId: liveCart.id }),
       })
-      // Cache in sessionStorage
       try {
         sessionStorage.setItem("mhc_eligibility_data", JSON.stringify({ ...eligibilityData, cartId: liveCart.id }))
       } catch {}
       setEligibilityVerified(true)
       setShowEligibilityModal(false)
     } catch {
-      // Even if save fails, allow proceeding — data was entered
       setEligibilityVerified(true)
       setShowEligibilityModal(false)
     } finally {
@@ -215,7 +202,6 @@ export default function SinglePageCheckout({
 
   const cartAny = liveCart as any
   const paidByGiftcard = cartAny?.gift_cards?.length > 0 && cartAny?.total === 0
-  // Promo code (or any discount) that zeroes out the total also needs no payment
   const zeroTotal = (cartAny?.total ?? 1) === 0
   const noPaymentNeeded = paidByGiftcard || zeroTotal
 
@@ -236,19 +222,19 @@ export default function SinglePageCheckout({
       <section className="bg-white">
         <h2 className="text-3xl-regular font-semibold mb-6">Shipping Address</h2>
         <form ref={addressFormRef}>
-        <ShippingAddress
-          customer={customer}
-          checked={sameAsBilling}
-          onChange={toggleSameAsBilling}
-          cart={cart}
-          onFieldChange={handleAddressFieldChange}
-        />
-        {!sameAsBilling && (
-          <div className="mt-8">
-            <h2 className="text-3xl-regular font-semibold pb-6">Billing Address</h2>
-            <BillingAddress cart={cart} />
-          </div>
-        )}
+          <ShippingAddress
+            customer={customer}
+            checked={sameAsBilling}
+            onChange={toggleSameAsBilling}
+            cart={cart}
+            onFieldChange={handleAddressFieldChange}
+          />
+          {!sameAsBilling && (
+            <div className="mt-8">
+              <h2 className="text-3xl-regular font-semibold pb-6">Billing Address</h2>
+              <BillingAddress cart={cart} />
+            </div>
+          )}
         </form>
         <hr className="mt-8" />
       </section>
@@ -416,19 +402,18 @@ export default function SinglePageCheckout({
               noPaymentNeeded={noPaymentNeeded}
               data-testid="submit-order-button"
               onBeforeSubmit={async () => {
-                // Save address only if not already complete on the server
                 if (addressFormRef.current && !cart.shipping_address?.address_1) {
                   try {
                     const formData = new FormData(addressFormRef.current)
                     if (sameAsBilling) formData.set("same_as_billing", "on")
                     await saveShippingAddress(formData)
                   } catch {
-                    // non-fatal — address may already be saved
+                    // non-fatal
                   }
                 }
               }}
             />
-            ) : (
+          ) : (
             <button disabled className="w-full rounded-2xl bg-gray-300 text-white py-3 font-semibold cursor-not-allowed text-sm">
               Place order
             </button>
@@ -439,7 +424,6 @@ export default function SinglePageCheckout({
     </div>
     </PaymentWrapper>
 
-      {/* ── Eligibility modal — shown when eligibility data is missing at checkout ── */}
       {showEligibilityModal && firstProductId && (
         <EligibilityModal
           productId={firstProductId}

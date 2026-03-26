@@ -102,6 +102,8 @@ export default function ProductActions({
   const [requiresEligibility, setRequiresEligibility] = useState(false)
   const [eligibilityChecked, setEligibilityChecked] = useState(false)
   const [alreadyScreened, setAlreadyScreened] = useState(false)
+  // True while either eligibility-check or cart-check is still in flight
+  const [buttonReady, setButtonReady] = useState(false)
 
   const countryCode = (useParams().countryCode as string) || "us"
 
@@ -112,72 +114,71 @@ export default function ProductActions({
     ? ((window as any).__TENANT_DOMAIN__ || window.location.hostname + (window.location.port ? `:${window.location.port}` : ""))
     : "localhost:8000"
 
-  // Single cart check that handles all cases:
-  // 1. No cartId yet (SSR) — wait, do nothing
-  // 2. Cart has items — validate cache against cartId, set alreadyScreened
-  // 3. Cart empty or not found — clear cache
-  // NOTE: Only runs if there's cached eligibility data — no point fetching cart otherwise
+  // Run eligibility check and cart check in parallel, mark button ready when both done.
+  // Until buttonReady is true the button stays disabled so the user can't click
+  // "Add to cart" before we know it should say "Continue".
   useEffect(() => {
-    if (!initialCartId) return
-    // Fast path: if no cache exists, nothing to validate — skip the cart fetch entirely
-    const cached = getCachedEligibility(initialCartId)
-    if (!cached) {
-      setAlreadyScreened(false)
-      return
+    let cancelled = false
+
+    const checkEligibility = async (): Promise<{ needs: boolean; screened: boolean }> => {
+      const pubKey = getTenantPubKey()
+      const url = `/api/eligibility-check?domain=${encodeURIComponent(domain)}&productId=${encodeURIComponent(product.id)}`
+      try {
+        const res = await fetch(url, { headers: { "x-publishable-api-key": pubKey } })
+        const data = await res.json()
+        if (res.ok && data.requiresEligibility === true) {
+          // Product needs eligibility — check cache while we're here
+          const cached = getCachedEligibility(initialCartId || undefined)
+          return { needs: true, screened: !!cached }
+        }
+        return { needs: false, screened: false }
+      } catch {
+        return { needs: false, screened: false }
+      }
     }
-    // Cache exists — validate it's still for a cart with items
-    const checkCart = async () => {
+
+    const checkCart = async (needs: boolean, screenedFromCache: boolean): Promise<boolean> => {
+      // Cart check is only needed to detect stale cache after order placement.
+      // If no cartId is available yet, trust the cache as-is.
+      if (!needs || !screenedFromCache) return screenedFromCache
+      if (!initialCartId) return screenedFromCache
       try {
         const res = await fetch(`/api/cart-check?cartId=${initialCartId}`, {
           headers: { "x-publishable-api-key": getTenantPubKey() },
         })
         if (!res.ok) {
+          // Cart not found — likely a new session after order placement, clear cache
           sessionStorage.removeItem(ELIGIBILITY_SESSION_KEY)
-          setAlreadyScreened(false)
-        } else {
-          const data = await res.json()
-          if (!data.hasItems) {
-            sessionStorage.removeItem(ELIGIBILITY_SESSION_KEY)
-            setAlreadyScreened(false)
-          } else {
-            setAlreadyScreened(true)
-          }
+          return false
         }
-      } catch {
-        // On error, trust the cache
-        setAlreadyScreened(true)
-      }
-    }
-    checkCart()
-  }, [initialCartId])
-
-  // Check if this product requires eligibility screening
-  // Uses a Next.js API proxy to avoid CORS issues with direct browser→backend calls
-  useEffect(() => {
-    if (eligibilityChecked) return
-    const checkEligibility = async () => {
-      const pubKey = getTenantPubKey()
-      // Use same-origin proxy route — no CORS issues
-      const url = `/api/eligibility-check?domain=${encodeURIComponent(domain)}&productId=${encodeURIComponent(product.id)}`
-      try {
-        const res = await fetch(url, { headers: { "x-publishable-api-key": pubKey } })
         const data = await res.json()
-        if (res.ok) {
-          const needs = data.requiresEligibility === true
-          setRequiresEligibility(needs)
-          if (needs && getCachedEligibility(initialCartId || undefined)) {
-            setAlreadyScreened(true)
-          }
+        // Only clear cache if the cart explicitly doesn't exist (404-like).
+        // An empty cart is fine — user may have answered eligibility but not added yet.
+        // We only invalidate if the cart ID itself is gone (new cart after order).
+        if (data.cartExists === false) {
+          sessionStorage.removeItem(ELIGIBILITY_SESSION_KEY)
+          return false
         }
-      } catch (e) {
-        console.error("[EligCheck] fetch error", e)
-        setRequiresEligibility(false)
-      } finally {
-        setEligibilityChecked(true)
+        return true
+      } catch {
+        return true // trust cache on network error
       }
     }
-    checkEligibility()
-  }, [product.id, domain, eligibilityChecked])
+
+    const run = async () => {
+      const { needs, screened: screenedFromCache } = await checkEligibility()
+      if (cancelled) return
+      const finalScreened = await checkCart(needs, screenedFromCache)
+      if (cancelled) return
+      setRequiresEligibility(needs)
+      setAlreadyScreened(finalScreened)
+      setEligibilityChecked(true)
+      setButtonReady(true)
+    }
+
+    run()
+    return () => { cancelled = true }
+  }, [product.id, domain, initialCartId])
 
   // If there is only 1 variant, preselect the options
   useEffect(() => {
@@ -370,6 +371,7 @@ export default function ProductActions({
         <Button
           onClick={handleButtonClick}
           disabled={
+            !buttonReady ||
             !inStock ||
             !selectedVariant ||
             !!disabled ||
@@ -378,7 +380,7 @@ export default function ProductActions({
           }
           variant="primary"
           className="w-full h-10"
-          isLoading={isAdding}
+          isLoading={isAdding || !buttonReady}
           data-testid="add-product-button"
         >
           {buttonLabel}
@@ -391,7 +393,7 @@ export default function ProductActions({
           updateOptions={setOptionValue}
           inStock={inStock}
           handleAddToCart={handleButtonClick}
-          isAdding={isAdding}
+          isAdding={isAdding || !buttonReady}
           show={!inView}
           optionsDisabled={!!disabled || isAdding}
         />
