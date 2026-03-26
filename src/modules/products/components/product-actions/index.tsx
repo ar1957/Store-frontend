@@ -17,23 +17,11 @@ import EligibilityModal from "@modules/products/components/eligibility-modal"
 const BACKEND = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
 const DEFAULT_PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
-// Tenant key map — mirrors tenants.ts so client-side fetches use correct key
-const TENANT_KEYS: Record<string, string> = {
-  "localhost:8000":                  "pk_0d04e5f39f21233de48aae0826522a81a13223024535549c62bdeca3a904b54d",
-  "spaderx.local:8000":             "pk_c05a977ce3aa7edbe18eb8627d240cc79e3b85a56a77758e5852fe419a796d9b",
-  "spaderx.com":                    "pk_c05a977ce3aa7edbe18eb8627d240cc79e3b85a56a77758e5852fe419a796d9b",
-  "myclassywellness.local:8000":    "pk_9b161fb22ef604acba9c3a9f5559297c57f1de3dba630653e356157984961374",
-  "myclassywellness.com":           "pk_9b161fb22ef604acba9c3a9f5559297c57f1de3dba630653e356157984961374",
-  "contour-wellness.local:8000":    "pk_f034439d37fa0d6da706d0eccd8ce5499532b67ba17af9bdf64fefe864abefdb",
-  "contour-wellness.com":           "pk_f034439d37fa0d6da706d0eccd8ce5499532b67ba17af9bdf64fefe864abefdb",
-}
-
 function getTenantPubKey(): string {
   if (typeof window === "undefined") return DEFAULT_PUB_KEY
-  // Prefer key injected by server middleware (always correct)
+  // Prefer key injected by server middleware (always correct for current tenant)
   if ((window as any).__TENANT_API_KEY__) return (window as any).__TENANT_API_KEY__
-  // Fallback to hardcoded map
-  return TENANT_KEYS[window.location.host] || DEFAULT_PUB_KEY
+  return DEFAULT_PUB_KEY
 }
 
 // Session key for caching eligibility answers across products
@@ -94,80 +82,103 @@ export default function ProductActions({
   const searchParams = useSearchParams()
 
   const [options, setOptions] = useState<Record<string, string | undefined>>({})
-  const [isAdding, setIsAdding] = useState(false)
+  const [isAdding, setIsAdding] = useState(() =>
+    typeof window !== "undefined" && sessionStorage.getItem("mhc_adding_to_cart") === "1"
+  )
+
+  // If we remounted on the product page with the flag set, it means navigation
+  // was cancelled or failed — clear the lock so the button works again
+  useEffect(() => {
+    if (sessionStorage.getItem("mhc_adding_to_cart") === "1") {
+      // Give router.push a moment to fire; if we're still here after 3s, clear it
+      const t = setTimeout(() => {
+        sessionStorage.removeItem("mhc_adding_to_cart")
+        setIsAdding(false)
+      }, 3000)
+      return () => clearTimeout(t)
+    }
+  }, [])
   const [showEligibility, setShowEligibility] = useState(false)
   const [requiresEligibility, setRequiresEligibility] = useState(false)
   const [eligibilityChecked, setEligibilityChecked] = useState(false)
   const [alreadyScreened, setAlreadyScreened] = useState(false)
+  // True while either eligibility-check or cart-check is still in flight
+  const [buttonReady, setButtonReady] = useState(false)
 
   const countryCode = (useParams().countryCode as string) || "us"
 
   // Get the domain for tenant detection
+  // Prefer __TENANT_DOMAIN__ injected by middleware (correct for all clinics including new ones)
+  // Fall back to window.location.hostname for local dev
   const domain = typeof window !== "undefined"
-    ? window.location.hostname + (window.location.port ? `:${window.location.port}` : "")
+    ? ((window as any).__TENANT_DOMAIN__ || window.location.hostname + (window.location.port ? `:${window.location.port}` : ""))
     : "localhost:8000"
 
-  // Single cart check that handles all cases:
-  // 1. No cartId yet (SSR) — wait, do nothing
-  // 2. Cart has items — validate cache against cartId, set alreadyScreened
-  // 3. Cart empty or not found — clear cache
+  // Run eligibility check and cart check in parallel, mark button ready when both done.
+  // Until buttonReady is true the button stays disabled so the user can't click
+  // "Add to cart" before we know it should say "Continue".
   useEffect(() => {
-    if (!initialCartId) return
-    const checkCart = async () => {
-      try {
-        const res = await fetch(`${BACKEND}/store/carts/${initialCartId}`, {
-          headers: { "x-publishable-api-key": getTenantPubKey() },
-          credentials: "include",
-        })
-        if (!res.ok) {
-          // Cart gone (order placed) — clear cache
-          sessionStorage.removeItem(ELIGIBILITY_SESSION_KEY)
-          setAlreadyScreened(false)
-          setEligibilityChecked(false)
-        } else {
-          const data = await res.json()
-          const itemCount = data.cart?.items?.length ?? 0
-          if (itemCount === 0) {
-            // Empty cart — clear cache
-            sessionStorage.removeItem(ELIGIBILITY_SESSION_KEY)
-            setAlreadyScreened(false)
-            setEligibilityChecked(false)
-          } else {
-            // Cart has items — check if cache is valid for this cart
-            const cached = getCachedEligibility(initialCartId)
-            setAlreadyScreened(!!cached)
-          }
-        }
-      } catch {}
-    }
-    checkCart()
-  }, [initialCartId])
+    let cancelled = false
 
-  // Check if this product requires eligibility screening
-  useEffect(() => {
-    if (eligibilityChecked) return
-    const checkEligibility = async () => {
+    const checkEligibility = async (): Promise<{ needs: boolean; screened: boolean }> => {
+      const pubKey = getTenantPubKey()
+      const url = `/api/eligibility-check?domain=${encodeURIComponent(domain)}&productId=${encodeURIComponent(product.id)}`
       try {
-        const res = await fetch(
-          `${BACKEND}/store/eligibility/check?domain=${domain}&productId=${product.id}`,
-          { headers: { "x-publishable-api-key": getTenantPubKey() } }
-        )
-        if (res.ok) {
-          const data = await res.json()
-          const needs = data.requiresEligibility === true
-          setRequiresEligibility(needs)
-          if (needs && getCachedEligibility(initialCartId || undefined)) {
-            setAlreadyScreened(true)
-          }
+        const res = await fetch(url, { headers: { "x-publishable-api-key": pubKey } })
+        const data = await res.json()
+        if (res.ok && data.requiresEligibility === true) {
+          // Product needs eligibility — check cache while we're here
+          const cached = getCachedEligibility(initialCartId || undefined)
+          return { needs: true, screened: !!cached }
         }
+        return { needs: false, screened: false }
       } catch {
-        setRequiresEligibility(false)
-      } finally {
-        setEligibilityChecked(true)
+        return { needs: false, screened: false }
       }
     }
-    checkEligibility()
-  }, [product.id, domain, eligibilityChecked])
+
+    const checkCart = async (needs: boolean, screenedFromCache: boolean): Promise<boolean> => {
+      // Cart check is only needed to detect stale cache after order placement.
+      // If no cartId is available yet, trust the cache as-is.
+      if (!needs || !screenedFromCache) return screenedFromCache
+      if (!initialCartId) return screenedFromCache
+      try {
+        const res = await fetch(`/api/cart-check?cartId=${initialCartId}`, {
+          headers: { "x-publishable-api-key": getTenantPubKey() },
+        })
+        if (!res.ok) {
+          // Cart not found — likely a new session after order placement, clear cache
+          sessionStorage.removeItem(ELIGIBILITY_SESSION_KEY)
+          return false
+        }
+        const data = await res.json()
+        // Only clear cache if the cart explicitly doesn't exist (404-like).
+        // An empty cart is fine — user may have answered eligibility but not added yet.
+        // We only invalidate if the cart ID itself is gone (new cart after order).
+        if (data.cartExists === false) {
+          sessionStorage.removeItem(ELIGIBILITY_SESSION_KEY)
+          return false
+        }
+        return true
+      } catch {
+        return true // trust cache on network error
+      }
+    }
+
+    const run = async () => {
+      const { needs, screened: screenedFromCache } = await checkEligibility()
+      if (cancelled) return
+      const finalScreened = await checkCart(needs, screenedFromCache)
+      if (cancelled) return
+      setRequiresEligibility(needs)
+      setAlreadyScreened(finalScreened)
+      setEligibilityChecked(true)
+      setButtonReady(true)
+    }
+
+    run()
+    return () => { cancelled = true }
+  }, [product.id, domain, initialCartId])
 
   // If there is only 1 variant, preselect the options
   useEffect(() => {
@@ -224,13 +235,22 @@ export default function ProductActions({
   // Standard add to cart (used after eligibility is cleared)
   const handleAddToCart = async () => {
     if (!selectedVariant?.id) return null
+    // Guard against re-entry after revalidateTag causes component remount
+    if (sessionStorage.getItem("mhc_adding_to_cart") === "1") return null
+    sessionStorage.setItem("mhc_adding_to_cart", "1")
     setIsAdding(true)
-    await addToCart({
-      variantId: selectedVariant.id,
-      quantity: 1,
-      countryCode,
-    })
-    setIsAdding(false)
+    try {
+      await addToCart({
+        variantId: selectedVariant.id,
+        quantity: 1,
+        countryCode,
+      })
+      router.push(`/${countryCode}/cart`)
+      // don't clear the flag or stop spinner — navigation takes over
+    } catch {
+      sessionStorage.removeItem("mhc_adding_to_cart")
+      setIsAdding(false)
+    }
   }
 
   // Button click — show eligibility modal or add to cart directly
@@ -238,11 +258,13 @@ export default function ProductActions({
     if (requiresEligibility && !alreadyScreened) {
       setShowEligibility(true)
     } else if (requiresEligibility && alreadyScreened) {
-      // Already screened — reuse cached eligibility and go straight to cart
-      const cached = getCachedEligibility()
+      // Already screened — re-save cached eligibility to cart then add
+      const cached = getCachedEligibility(initialCartId || undefined)
       if (cached) {
-        handleEligibilityApproved({ ...cached, productId: product.id })
+        handleEligibilityApproved(cached)
       } else {
+        // Cache gone — show modal again
+        setAlreadyScreened(false)
         setShowEligibility(true)
       }
     } else {
@@ -252,7 +274,6 @@ export default function ProductActions({
 
   // After eligibility modal completes — save answers to cart metadata then add to cart
   const handleEligibilityApproved = async (eligibilityData: Record<string, any>) => {
-    setShowEligibility(false)
     setIsAdding(true)
 
     try {
@@ -283,13 +304,12 @@ export default function ProductActions({
 
       if (!cartId) {
         console.error("Could not retrieve cart ID")
-        // Still navigate to cart — the item was added even if we can't save eligibility
         router.push(`/${countryCode}/cart`)
         return
       }
 
-      // 3. Save eligibility answers to cart metadata via backend
-      const res = await fetch(`${BACKEND}/store/carts/eligibility-metadata`, {
+      // 3. Save eligibility answers to cart metadata via proxy (avoids CORS)
+      const res = await fetch(`/api/eligibility-metadata`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -310,7 +330,6 @@ export default function ProductActions({
       router.push(`/${countryCode}/cart`)
     } catch (e) {
       console.error("Error saving eligibility to cart:", e)
-      // Even if metadata save failed, still go to cart
       router.push(`/${countryCode}/cart`)
     } finally {
       setIsAdding(false)
@@ -352,6 +371,7 @@ export default function ProductActions({
         <Button
           onClick={handleButtonClick}
           disabled={
+            !buttonReady ||
             !inStock ||
             !selectedVariant ||
             !!disabled ||
@@ -360,7 +380,7 @@ export default function ProductActions({
           }
           variant="primary"
           className="w-full h-10"
-          isLoading={isAdding}
+          isLoading={isAdding || !buttonReady}
           data-testid="add-product-button"
         >
           {buttonLabel}
@@ -373,7 +393,7 @@ export default function ProductActions({
           updateOptions={setOptionValue}
           inStock={inStock}
           handleAddToCart={handleButtonClick}
-          isAdding={isAdding}
+          isAdding={isAdding || !buttonReady}
           show={!inView}
           optionsDisabled={!!disabled || isAdding}
         />

@@ -2,6 +2,46 @@
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 
+/* ── Brand color overrides ───────────────────────────────────────────────────
+   --color-primary and --button-text are injected into <head> by the root layout.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Wire medusa-ui button tokens to the tenant brand color */
+html {
+  --brand-primary: var(--color-primary, #111111);
+  --brand-text: var(--button-text, #ffffff);
+  --button-inverted: var(--color-primary, #111111);
+  --button-inverted-hover: var(--color-primary, #111111);
+  --button-inverted-pressed: var(--color-primary, #111111);
+  --contrast-fg-primary: var(--button-text, #ffffff);
+}
+
+/* Direct override — targets every <button> that medusa-ui renders as primary.
+   Lives outside @layer so it beats Tailwind's addBase injection. */
+button.shadow-buttons-inverted,
+button[class*="shadow-buttons-inverted"] {
+  background-color: var(--color-primary, #111111) !important;
+  color: var(--button-text, #ffffff) !important;
+  border-radius: 16px !important;
+  font-size: 14px !important;
+}
+button.shadow-buttons-inverted:hover,
+button[class*="shadow-buttons-inverted"]:hover {
+  background-color: var(--color-primary, #111111) !important;
+  opacity: 0.9;
+}
+
+/* Round all other medusa-ui button variants too */
+button[class*="shadow-buttons-"] {
+  border-radius: 16px !important;
+  font-size: 14px !important;
+}
+
+/* Force consistent font size on ALL buttons site-wide */
+button {
+  font-size: 14px !important;
+}
+
 @layer utilities {
   /* Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {

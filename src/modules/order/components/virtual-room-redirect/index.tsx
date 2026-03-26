@@ -33,10 +33,10 @@ export default function VirtualRoomRedirect({ orderId, metadata }: Props) {
 
     const poll = async () => {
       try {
-        const BACKEND = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
-        const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
+        const PUB_KEY = (typeof window !== "undefined" && (window as any).__TENANT_API_KEY__)
+          || process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
-        const res = await fetch(`${BACKEND}/store/orders/${orderId}/gfe-status`, {
+        const res = await fetch(`/api/gfe-status/${orderId}`, {
           headers: { "x-publishable-api-key": PUB_KEY },
         })
 
@@ -56,6 +56,7 @@ export default function VirtualRoomRedirect({ orderId, metadata }: Props) {
       if (attempts < maxAttempts) {
         setTimeout(poll, 3000)
       } else {
+        // Stop polling but keep showing the waiting state — don't hide the component
         setChecking(false)
       }
     }
@@ -63,7 +64,19 @@ export default function VirtualRoomRedirect({ orderId, metadata }: Props) {
     setTimeout(poll, 3000) // Start polling after 3s delay
   }, [orderId, metadata])
 
-  if (!virtualRoomUrl && !checking) return null
+  if (!virtualRoomUrl && !checking) {
+    return (
+      <div style={s.box}>
+        <div style={s.spinner}>🩺</div>
+        <p style={s.text}>
+          Your consultation has been created. A provider will review your information shortly.
+          You can check back on your{" "}
+          <a href={`/order/status`} style={{ color: "var(--color-primary, #C9A84C)" }}>order status page</a>
+          {" "}for updates.
+        </p>
+      </div>
+    )
+  }
 
   if (checking) {
     return (
@@ -87,7 +100,7 @@ export default function VirtualRoomRedirect({ orderId, metadata }: Props) {
       </a>
       <p style={s.hint}>
         You can also access this link from your{" "}
-        <a href={`/order/status`} style={{ color: "#C9A84C" }}>order status page</a>
+        <a href={`/order/status`} style={{ color: "var(--color-primary, #C9A84C)" }}>order status page</a>
         {" "}at any time.
       </p>
     </div>
@@ -95,11 +108,11 @@ export default function VirtualRoomRedirect({ orderId, metadata }: Props) {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  box: { background: "#fff", border: "2px solid #C9A84C", borderRadius: 16, padding: "28px 24px", textAlign: "center", margin: "24px 0" },
+  box: { background: "#fff", border: "2px solid var(--color-primary, #C9A84C)", borderRadius: 16, padding: "28px 24px", textAlign: "center", margin: "24px 0" },
   spinner: { fontSize: 32, marginBottom: 12 },
   icon: { fontSize: 40, marginBottom: 12 },
   title: { fontSize: 18, fontWeight: 700, color: "#111", margin: "0 0 8px" },
   text: { fontSize: 14, color: "#6b7280", margin: "0 0 16px", lineHeight: 1.6 },
-  btn: { display: "inline-block", padding: "12px 28px", background: "#C9A84C", color: "#fff", borderRadius: 10, fontWeight: 700, fontSize: 15, textDecoration: "none" },
+  btn: { display: "inline-block", padding: "12px 28px", background: "var(--color-primary, #C9A84C)", color: "var(--button-text, #fff)", borderRadius: 16, fontWeight: 700, fontSize: 14, textDecoration: "none" },
   hint: { fontSize: 12, color: "#9ca3af", marginTop: 12 },
 }

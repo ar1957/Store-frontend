@@ -19,5 +19,15 @@ export default async function OrderConfirmedPage(props: Props) {
     return notFound()
   }
 
-  return <OrderCompletedTemplate order={order} />
+  // Extract the clinic domain from order metadata — stored during eligibility screening
+  // Uses +metadata field (explicitly fetched) so it's available at render time
+  const orderMeta = order.metadata as Record<string, any> | null
+  const clinicDomain: string | null = 
+    orderMeta?.eligibility?.domain || 
+    orderMeta?.domain || 
+    null
+
+  console.log("[ConfirmedPage] order.metadata:", JSON.stringify(orderMeta), "clinicDomain:", clinicDomain)
+
+  return <OrderCompletedTemplate order={order} clinicDomain={clinicDomain} />
 }

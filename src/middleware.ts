@@ -7,13 +7,20 @@ export async function middleware(request: NextRequest) {
   const host = request.headers.get("host") || "localhost:8000"
   let tenantApiKey = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
 
+  // Always forward the original host so server components can read it reliably
+  requestHeaders.set("x-forwarded-host", host)
+  requestHeaders.set("x-tenant-domain", host.split(":")[0])
+
+  console.log("[Middleware]", request.method, request.nextUrl.pathname, "host:", host)
+
   try {
     const res = await fetch(`${BACKEND_URL}/store/clinics/tenant-config`, {
       headers: { 
-        "host": host, 
+        "host": host,
+        "x-forwarded-host": host,
         "x-publishable-api-key": process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || "" 
       },
-      next: { revalidate: 60 },
+      cache: "no-store",
     })
     const data = await res.json()
     if (data?.tenant?.apiKey) {
@@ -23,7 +30,6 @@ export async function middleware(request: NextRequest) {
     console.error("Middleware lookup failed:", e)
   }
 
-  // 1. Set Header for Server Components (Products)
   if (tenantApiKey) {
     requestHeaders.set("x-tenant-api-key", tenantApiKey)
   }
@@ -32,7 +38,6 @@ export async function middleware(request: NextRequest) {
     request: { headers: requestHeaders },
   })
 
-  // 2. Set Cookie for Client Components (Payment/Stripe)
   if (tenantApiKey) {
     response.cookies.set("x-tenant-api-key", tenantApiKey, {
       path: "/",

@@ -12,6 +12,7 @@ import {
   getCartId,
   removeCartId,
   setCartId,
+  setClinicDomain,
 } from "./cookies"
 import { getRegion } from "./regions"
 import { getLocale } from "@lib/data/locale-actions"
@@ -46,7 +47,7 @@ export async function retrieveCart(cartId?: string, fields?: string) {
       },
       headers,
       next,
-      cache: "force-cache",
+      cache: fields?.includes("payment_collection") ? "no-store" : "force-cache",
     })
     .then(({ cart }: { cart: HttpTypes.StoreCart }) => cart)
     .catch(() => null)
@@ -214,7 +215,18 @@ export async function deleteLineItem(lineId: string) {
       const fulfillmentCacheTag = await getCacheTag("fulfillment")
       revalidateTag(fulfillmentCacheTag)
     })
-    .catch(medusaError)
+    .catch(async (err: any) => {
+      // If the cart is already completed, the cookie is stale — clear it
+      // so the next action creates a fresh cart instead of looping on 400s
+      const msg: string = err?.message || ""
+      if (msg.includes("already completed") || err?.status === 400) {
+        await removeCartId()
+        const cartCacheTag = await getCacheTag("carts")
+        revalidateTag(cartCacheTag)
+        return // silently recover — cart is gone, nothing to remove
+      }
+      medusaError(err)
+    })
 }
 
 export async function setShippingMethod({
@@ -418,6 +430,14 @@ export async function placeOrder(cartId?: string) {
     const orderCacheTag = await getCacheTag("orders")
     revalidateTag(orderCacheTag)
 
+    // Persist the clinic domain in a cookie so the confirmation page layout
+    // can use it even after the server-action redirect loses the original host header
+    const orderMeta = cartRes.order.metadata as Record<string, any> | null
+    const clinicDomain = orderMeta?.eligibility?.domain
+    if (clinicDomain) {
+      await setClinicDomain(clinicDomain)
+    }
+
     removeCartId()
     redirect(`/${countryCode}/order/${cartRes?.order.id}/confirmed`)
   }
@@ -504,6 +524,11 @@ export async function saveShippingAddress(formData: FormData): Promise<string | 
     await updateCart(data)
     return null // null = success
   } catch (e: any) {
-    return e.message
+    const msg: string = e?.message || ""
+    // Cart already completed — this is fine, address was already saved
+    if (msg.includes("already completed") || msg.includes("409") || msg.includes("conflicted")) {
+      return null
+    }
+    return msg
   }
 }

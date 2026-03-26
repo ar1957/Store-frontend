@@ -10,7 +10,6 @@
 
 import { useEffect, useState, useCallback, use } from "react"
 
-const BACKEND = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
 const STATUS_STEPS = [
@@ -57,8 +56,9 @@ export default function OrderStatusPage({ params: paramsPromise }: { params: Pro
   const fetchStatus = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true)
     try {
-      const res = await fetch(`${BACKEND}/store/orders/${params.gfeId}/status`, {
-        headers: { "x-publishable-api-key": PUB_KEY },
+      const pubKey = typeof window !== "undefined" ? ((window as any).__TENANT_API_KEY__ || PUB_KEY) : PUB_KEY
+      const res = await fetch(`/api/order-status/${params.gfeId}`, {
+        headers: { "x-publishable-api-key": pubKey },
       })
       if (!res.ok) {
         const d = await res.json()
@@ -79,18 +79,16 @@ export default function OrderStatusPage({ params: paramsPromise }: { params: Pro
   const refreshFromProvider = async () => {
     setRefreshing(true)
     try {
-      // Step 1: Always re-fetch current status from DB first
       await fetchStatus()
 
-      // Step 2: Only call provider API if still pending_provider
       if (data?.status === "pending_provider") {
-        const res = await fetch(`${BACKEND}/store/orders/${params.gfeId}/status`, {
+        const pubKey = typeof window !== "undefined" ? ((window as any).__TENANT_API_KEY__ || PUB_KEY) : PUB_KEY
+        const res = await fetch(`/api/order-status/${params.gfeId}`, {
           method: "POST",
-          headers: { "x-publishable-api-key": PUB_KEY },
+          headers: { "x-publishable-api-key": pubKey },
         })
         const d = await res.json()
         if (d.status && d.status !== data?.status) {
-          // Status changed — re-fetch full data from DB
           await fetchStatus()
         }
       }
@@ -246,13 +244,13 @@ const s: Record<string, React.CSSProperties> = {
   infoBox: { background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 12, padding: "18px 20px", marginBottom: 16 },
   infoTitle: { fontSize: 13, fontWeight: 700, color: "#111", margin: "0 0 6px" },
   infoText: { fontSize: 13, color: "#6b7280", margin: "0 0 14px" },
-  btn: { display: "block", textAlign: "center", padding: "12px 20px", background: "#C9A84C", color: "#fff", borderRadius: 10, fontWeight: 700, fontSize: 14, textDecoration: "none" },
+  btn: { display: "block", textAlign: "center", padding: "12px 20px", background: "var(--color-primary, #C9A84C)", color: "var(--button-text, #fff)", borderRadius: 16, fontWeight: 700, fontSize: 14, textDecoration: "none" },
   trackingRow: { display: "flex", justifyContent: "space-between", marginBottom: 6 },
   trackingLabel: { fontSize: 12, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase" as const },
   trackingValue: { fontSize: 13, color: "#111", fontWeight: 600 },
   refreshRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8, marginBottom: 16 },
   lastChecked: { fontSize: 11, color: "#9ca3af" },
-  refreshBtn: { padding: "8px 16px", borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff", cursor: "pointer", fontSize: 13, color: "#374151", fontWeight: 500 },
+  refreshBtn: { padding: "8px 16px", borderRadius: 16, border: "1px solid #e5e7eb", background: "#fff", cursor: "pointer", fontSize: 14, color: "#374151", fontWeight: 500 },
   refRow: { display: "flex", justifyContent: "space-between", paddingTop: 16, borderTop: "1px solid #f3f4f6" },
   refLabel: { fontSize: 11, color: "#9ca3af", textTransform: "uppercase" as const, fontWeight: 600 },
   refValue: { fontSize: 11, color: "#6b7280", fontFamily: "monospace" },

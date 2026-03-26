@@ -6,7 +6,7 @@
 
 import { Radio, RadioGroup } from "@headlessui/react"
 import { isStripeLike, paymentInfoMap } from "@lib/constants"
-import { initiatePaymentSession, setShippingMethod, saveShippingAddress } from "@lib/data/cart"
+import { initiatePaymentSession, setShippingMethod, saveShippingAddress, retrieveCart } from "@lib/data/cart"
 import { calculatePriceForShippingOption } from "@lib/data/fulfillment"
 import { convertToLocale } from "@lib/util/money"
 import { Loader } from "@medusajs/icons"
@@ -14,12 +14,14 @@ import { HttpTypes } from "@medusajs/types"
 import { clx, useToggleState } from "@medusajs/ui"
 import ErrorMessage from "@modules/checkout/components/error-message"
 import PaymentButton from "@modules/checkout/components/payment-button"
+import PaymentWrapper from "@modules/checkout/components/payment-wrapper"
 import { StripeCardContainer } from "@modules/checkout/components/payment-container"
 import MedusaRadio from "@modules/common/components/radio"
 import ShippingAddress from "@modules/checkout/components/shipping-address"
 import BillingAddress from "@modules/checkout/components/billing_address"
 import compareAddresses from "@lib/util/compare-addresses"
-import { useEffect, useRef, useState } from "react"
+import EligibilityModal from "@modules/products/components/eligibility-modal"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 type Props = {
   cart: HttpTypes.StoreCart
@@ -44,13 +46,16 @@ export default function SinglePageCheckout({
       : true
   )
 
-  // Track address fields for completeness check
   const [addressFields, setAddressFields] = useState({
     first_name: cart.shipping_address?.first_name || "",
     last_name: cart.shipping_address?.last_name || "",
     address_1: cart.shipping_address?.address_1 || "",
     email: cart.email || "",
   })
+
+  const handleAddressFieldChange = useCallback((field: string, value: string) => {
+    setAddressFields(p => ({ ...p, [field]: value }))
+  }, [])
 
   const addressComplete = !!(
     (cart.shipping_address?.first_name || addressFields.first_name) &&
@@ -85,17 +90,27 @@ export default function SinglePageCheckout({
     }
   }, [])
 
+  // Auto-select the only shipping option if none is selected yet
+  useEffect(() => {
+    if (availableShippingMethods.length === 1 && !shippingMethodId) {
+      handleSetShipping(availableShippingMethods[0].id)
+    }
+  }, [availableShippingMethods.length])
+
   const handleSetShipping = async (id: string) => {
     setShippingError(null)
     setShippingLoading(true)
     setShippingMethodId(id)
     await setShippingMethod({ cartId: cart.id, shippingMethodId: id })
+      .then(() => retrieveCart(undefined, "*shipping_methods").then(fc => { if (fc) setLiveCart(prev => ({ ...prev, shipping_methods: fc.shipping_methods })) }))
       .catch(err => setShippingError(err.message))
       .finally(() => setShippingLoading(false))
   }
 
   // ── Payment ────────────────────────────────────────────────────────
-  const activeSession = cart.payment_collection?.payment_sessions?.find(
+  const [liveCart, setLiveCart] = useState<HttpTypes.StoreCart>(cart)
+  const [paymentLoading, setPaymentLoading] = useState(false)
+  const activeSession = liveCart.payment_collection?.payment_sessions?.find(
     (s: any) => s.status === "pending"
   )
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(
@@ -111,14 +126,30 @@ export default function SinglePageCheckout({
     if (activeSession) { paymentInitialized.current = true; return }
     if (!selectedPaymentMethod || !isStripeLike(selectedPaymentMethod)) return
     paymentInitialized.current = true
-    initiatePaymentSession(cart, { provider_id: selectedPaymentMethod }).catch(() => {})
+    setPaymentLoading(true)
+    initiatePaymentSession(liveCart, { provider_id: selectedPaymentMethod })
+      .then(() => retrieveCart(
+        undefined,
+        "*payment_collection, *payment_collection.payment_sessions, *shipping_methods"
+      ))
+      .then((freshCart) => { if (freshCart) setLiveCart(freshCart) })
+      .catch(() => {})
+      .finally(() => setPaymentLoading(false))
   }, [])
 
   const handlePaymentMethod = async (method: string) => {
     setPaymentError(null)
     setSelectedPaymentMethod(method)
     if (isStripeLike(method)) {
-      await initiatePaymentSession(cart, { provider_id: method }).catch(err => setPaymentError(err.message))
+      setPaymentLoading(true)
+      await initiatePaymentSession(liveCart, { provider_id: method })
+        .catch(err => { setPaymentError(err.message); return null })
+      const freshCart = await retrieveCart(
+        undefined,
+        "*payment_collection, *payment_collection.payment_sessions, *shipping_methods"
+      ).catch(() => null)
+      if (freshCart) setLiveCart(freshCart)
+      setPaymentLoading(false)
     }
   }
 
@@ -126,38 +157,84 @@ export default function SinglePageCheckout({
   const [consentTerms, setConsentTerms] = useState(false)
   const [consentPrivacy, setConsentPrivacy] = useState(false)
 
-  const cartAny = cart as any
+  // ── Eligibility gate ───────────────────────────────────────────────
+  const cartMeta = (liveCart as any).metadata as Record<string, any> | null
+
+  const [eligibilityVerified, setEligibilityVerified] = useState<boolean>(true)
+  const [showEligibilityModal, setShowEligibilityModal] = useState(false)
+  const [eligibilitySaving, setEligibilitySaving] = useState(false)
+
+  useEffect(() => {
+    const hasSession = !!sessionStorage.getItem("mhc_eligibility_data")
+    const hasMeta = !!(cartMeta?.eligibilityData || cartMeta?.locationId || cartMeta?.state)
+    setEligibilityVerified(hasSession || hasMeta)
+  }, [])
+
+  const clinicDomain = typeof window !== "undefined"
+    ? ((window as any).__TENANT_DOMAIN__ || window.location.hostname)
+    : ""
+
+  const firstItem = liveCart.items?.[0]
+  const firstProductId = (firstItem as any)?.product_id || (firstItem as any)?.variant?.product_id || ""
+  const firstProductTitle = (firstItem as any)?.product_title || (firstItem as any)?.title || "Your Product"
+
+  const handleEligibilityApproved = async (eligibilityData: Record<string, any>) => {
+    setEligibilitySaving(true)
+    try {
+      const pubKey = typeof window !== "undefined" ? ((window as any).__TENANT_API_KEY__ || "") : ""
+      await fetch(`/api/eligibility-metadata`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-publishable-api-key": pubKey },
+        body: JSON.stringify({ eligibilityData, cartId: liveCart.id }),
+      })
+      try {
+        sessionStorage.setItem("mhc_eligibility_data", JSON.stringify({ ...eligibilityData, cartId: liveCart.id }))
+      } catch {}
+      setEligibilityVerified(true)
+      setShowEligibilityModal(false)
+    } catch {
+      setEligibilityVerified(true)
+      setShowEligibilityModal(false)
+    } finally {
+      setEligibilitySaving(false)
+    }
+  }
+
+  const cartAny = liveCart as any
   const paidByGiftcard = cartAny?.gift_cards?.length > 0 && cartAny?.total === 0
+  const zeroTotal = (cartAny?.total ?? 1) === 0
+  const noPaymentNeeded = paidByGiftcard || zeroTotal
 
   const canPlaceOrder =
     addressComplete &&
-    (cart.shipping_methods?.length ?? 0) > 0 &&
-    (paidByGiftcard || (activeSession && (isStripeLike(selectedPaymentMethod) ? cardComplete : true))) &&
+    (liveCart.shipping_methods?.length ?? 0) > 0 &&
+    (noPaymentNeeded || (activeSession && (isStripeLike(selectedPaymentMethod) ? cardComplete : true))) &&
     consentTerms &&
-    consentPrivacy
+    consentPrivacy &&
+    eligibilityVerified
 
   return (
+    <>
+    <PaymentWrapper cart={liveCart}>
     <div className="w-full flex flex-col gap-y-8">
 
       {/* ── SECTION 1: Shipping Address ── */}
       <section className="bg-white">
         <h2 className="text-3xl-regular font-semibold mb-6">Shipping Address</h2>
         <form ref={addressFormRef}>
-        <ShippingAddress
-          customer={customer}
-          checked={sameAsBilling}
-          onChange={toggleSameAsBilling}
-          cart={cart}
-          onFieldChange={(field: string, value: string) =>
-            setAddressFields(p => ({ ...p, [field]: value }))
-          }
-        />
-        {!sameAsBilling && (
-          <div className="mt-8">
-            <h2 className="text-3xl-regular font-semibold pb-6">Billing Address</h2>
-            <BillingAddress cart={cart} />
-          </div>
-        )}
+          <ShippingAddress
+            customer={customer}
+            checked={sameAsBilling}
+            onChange={toggleSameAsBilling}
+            cart={cart}
+            onFieldChange={handleAddressFieldChange}
+          />
+          {!sameAsBilling && (
+            <div className="mt-8">
+              <h2 className="text-3xl-regular font-semibold pb-6">Billing Address</h2>
+              <BillingAddress cart={cart} />
+            </div>
+          )}
         </form>
         <hr className="mt-8" />
       </section>
@@ -207,36 +284,53 @@ export default function SinglePageCheckout({
       {/* ── SECTION 3: Payment ── */}
       <section className="bg-white">
         <h2 className="text-3xl-regular font-semibold mb-6">Payment</h2>
-        {!paidByGiftcard && availablePaymentMethods.length > 0 && (
-          <RadioGroup value={selectedPaymentMethod} onChange={handlePaymentMethod}>
-            {availablePaymentMethods.map(method => (
-              <div key={method.id}>
-                {isStripeLike(method.id) ? (
-                  <StripeCardContainer
-                    paymentProviderId={method.id}
-                    selectedPaymentOptionId={selectedPaymentMethod}
-                    paymentInfoMap={paymentInfoMap}
-                    setCardBrand={setCardBrand}
-                    setError={setPaymentError}
-                    setCardComplete={setCardComplete}
-                  />
-                ) : (
-                  <div
-                    className={clx(
-                      "flex items-center gap-x-4 cursor-pointer py-4 border rounded-lg px-6 mb-2",
-                      { "border-ui-border-interactive": method.id === selectedPaymentMethod }
-                    )}
-                    onClick={() => handlePaymentMethod(method.id)}
-                  >
-                    <MedusaRadio checked={method.id === selectedPaymentMethod} />
-                    <span>{paymentInfoMap[method.id]?.title || method.id}</span>
-                  </div>
-                )}
+          {paymentLoading ? (
+            <div className="w-full h-24 flex items-center justify-center border rounded-lg bg-gray-50 border-dashed">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-xs text-gray-500 font-medium">Setting up payment...</p>
               </div>
-            ))}
-          </RadioGroup>
-        )}
-        {paidByGiftcard && <p className="text-ui-fg-subtle text-sm">Paying with gift card</p>}
+            </div>
+          ) : (
+            <>
+              {zeroTotal && !paidByGiftcard && (
+                <div className="flex items-center gap-x-2 py-3 px-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                  <span>✓</span>
+                  <span>Your promotion code covers the full order — no payment required.</span>
+                </div>
+              )}
+              {!noPaymentNeeded && availablePaymentMethods.length > 0 && (
+                <RadioGroup value={selectedPaymentMethod} onChange={handlePaymentMethod}>
+                  {availablePaymentMethods.map(method => (
+                    <div key={method.id}>
+                      {isStripeLike(method.id) ? (
+                        <StripeCardContainer
+                          paymentProviderId={method.id}
+                          selectedPaymentOptionId={selectedPaymentMethod}
+                          paymentInfoMap={paymentInfoMap}
+                          setCardBrand={setCardBrand}
+                          setError={setPaymentError}
+                          setCardComplete={setCardComplete}
+                        />
+                      ) : (
+                        <div
+                          className={clx(
+                            "flex items-center gap-x-4 cursor-pointer py-4 border rounded-lg px-6 mb-2",
+                            { "border-ui-border-interactive": method.id === selectedPaymentMethod }
+                          )}
+                          onClick={() => handlePaymentMethod(method.id)}
+                        >
+                          <MedusaRadio checked={method.id === selectedPaymentMethod} />
+                          <span>{paymentInfoMap[method.id]?.title || method.id}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </RadioGroup>
+              )}
+              {paidByGiftcard && <p className="text-ui-fg-subtle text-sm">Paying with gift card</p>}
+            </>
+          )}
         {paymentError && <ErrorMessage error={paymentError} />}
         <hr className="mt-8" />
       </section>
@@ -281,28 +375,46 @@ export default function SinglePageCheckout({
             <p className="font-medium mb-1">Before placing your order, please complete:</p>
             <ul className="list-disc list-inside space-y-1">
               {!addressComplete && <li>Shipping address</li>}
-              {(cart.shipping_methods?.length ?? 0) === 0 && <li>Delivery method</li>}
-              {!paidByGiftcard && !activeSession && <li>Payment details</li>}
-              {isStripeLike(selectedPaymentMethod) && !cardComplete && activeSession && <li>Card details</li>}
+              {(liveCart.shipping_methods?.length ?? 0) === 0 && <li>Delivery method</li>}
+              {!paidByGiftcard && !activeSession && !zeroTotal && <li>Payment details</li>}
+              {isStripeLike(selectedPaymentMethod) && !cardComplete && activeSession && !zeroTotal && <li>Card details</li>}
               {!consentTerms && <li>Accept terms and conditions</li>}
               {!consentPrivacy && <li>Consent to privacy policy and telehealth terms</li>}
+              {!eligibilityVerified && (
+                <li>
+                  Health eligibility screening —{" "}
+                  <button
+                    onClick={() => setShowEligibilityModal(true)}
+                    className="underline font-semibold text-amber-800 hover:text-amber-900"
+                  >
+                    Complete now
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
         )}
 
         <div className={!canPlaceOrder ? "opacity-50 pointer-events-none" : ""}>
-          {activeSession ? (
-            <div onClick={async () => {
-              if (addressFormRef.current) {
-                const formData = new FormData(addressFormRef.current)
-                if (sameAsBilling) formData.set("same_as_billing", "on")
-                await saveShippingAddress(formData)
-              }
-            }}>
-            <PaymentButton cart={cart} data-testid="submit-order-button" />
-            </div>
-            ) : (
-            <button disabled className="w-full rounded-lg bg-gray-300 text-white py-3 font-semibold cursor-not-allowed">
+          {(activeSession || noPaymentNeeded) ? (
+            <PaymentButton
+              cart={liveCart}
+              noPaymentNeeded={noPaymentNeeded}
+              data-testid="submit-order-button"
+              onBeforeSubmit={async () => {
+                if (addressFormRef.current && !cart.shipping_address?.address_1) {
+                  try {
+                    const formData = new FormData(addressFormRef.current)
+                    if (sameAsBilling) formData.set("same_as_billing", "on")
+                    await saveShippingAddress(formData)
+                  } catch {
+                    // non-fatal
+                  }
+                }
+              }}
+            />
+          ) : (
+            <button disabled className="w-full rounded-2xl bg-gray-300 text-white py-3 font-semibold cursor-not-allowed text-sm">
               Place order
             </button>
           )}
@@ -310,5 +422,17 @@ export default function SinglePageCheckout({
       </section>
 
     </div>
+    </PaymentWrapper>
+
+      {showEligibilityModal && firstProductId && (
+        <EligibilityModal
+          productId={firstProductId}
+          productTitle={firstProductTitle}
+          clinicDomain={clinicDomain}
+          onClose={() => setShowEligibilityModal(false)}
+          onApproved={handleEligibilityApproved}
+        />
+      )}
+    </>
   )
 }

@@ -58,12 +58,12 @@ const ShippingAddress = ({
     "shipping_address.first_name": cart?.shipping_address?.first_name || "",
     "shipping_address.last_name": cart?.shipping_address?.last_name || "",
     "shipping_address.address_1": cart?.shipping_address?.address_1 || "",
-    "shipping_address.postal_code": "",
-    "shipping_address.city": "",
+    "shipping_address.postal_code": cart?.shipping_address?.postal_code || "",
+    "shipping_address.city": cart?.shipping_address?.city || "",
     "shipping_address.country_code": cart?.shipping_address?.country_code || "us",
-    "shipping_address.province": "",
+    "shipping_address.province": cart?.shipping_address?.province || "",
     "shipping_address.phone": cart?.shipping_address?.phone || "",
-    email: cart?.email || "",
+    email: cart?.email || customer?.email || "",
   })
 
   // ── Validation state (non-structural — doesn't affect form submission) ──
@@ -155,15 +155,16 @@ const ShippingAddress = ({
     address &&
       setFormData((prevState: Record<string, any>) => ({
         ...prevState,
-        "shipping_address.first_name": address?.first_name || "",
-        "shipping_address.last_name": address?.last_name || "",
-        "shipping_address.address_1": address?.address_1 || "",
+        // Only overwrite name fields if the incoming address actually has them
+        "shipping_address.first_name": address?.first_name || prevState["shipping_address.first_name"] || "",
+        "shipping_address.last_name": address?.last_name || prevState["shipping_address.last_name"] || "",
+        "shipping_address.address_1": address?.address_1 || prevState["shipping_address.address_1"] || "",
         // Keep city/zip that user typed — don't wipe them on cart updates
         "shipping_address.postal_code": prevState["shipping_address.postal_code"] || "",
         "shipping_address.city": prevState["shipping_address.city"] || "",
         "shipping_address.country_code": "us",
         // Province comes from eligibility useEffect — don't override it here
-        "shipping_address.phone": address?.phone || "",
+        "shipping_address.phone": address?.phone || prevState["shipping_address.phone"] || "",
       }))
 
     email &&
@@ -178,11 +179,9 @@ const ShippingAddress = ({
   useEffect(() => {
     if (hasInitialized.current) return
     hasInitialized.current = true
-    if (cart && cart.shipping_address) {
-      setFormAddress(cart?.shipping_address, cart?.email)
-    }
+    // Pre-fill customer email if cart has no email
     if (cart && !cart.email && customer?.email) {
-      setFormAddress(undefined, customer.email)
+      setFormData(p => ({ ...p, email: customer.email! }))
     }
   }, [])
 

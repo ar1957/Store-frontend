@@ -24,12 +24,12 @@ export const getCacheTag = async (tag: string): Promise<string> => {
     const cacheId = cookies.get("_medusa_cache_id")?.value
 
     if (!cacheId) {
-      return ""
+      return tag // fallback to base tag so revalidateTag always fires
     }
 
     return `${tag}-${cacheId}`
   } catch (error) {
-    return ""
+    return tag // fallback on error too
   }
 }
 
@@ -41,12 +41,7 @@ export const getCacheOptions = async (
   }
 
   const cacheTag = await getCacheTag(tag)
-
-  if (!cacheTag) {
-    return {}
-  }
-
-  return { tags: [`${cacheTag}`] }
+  return { tags: [cacheTag] }
 }
 
 export const setAuthToken = async (token: string) => {
@@ -86,4 +81,19 @@ export const removeCartId = async () => {
   cookies.set("_medusa_cart_id", "", {
     maxAge: -1,
   })
+}
+
+export const setClinicDomain = async (domain: string) => {
+  const cookies = await nextCookies()
+  cookies.set("_mhc_clinic_domain", domain, {
+    maxAge: 60 * 60, // 1 hour
+    httpOnly: false,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  })
+}
+
+export const getClinicDomain = async (): Promise<string | null> => {
+  const cookies = await nextCookies()
+  return cookies.get("_mhc_clinic_domain")?.value || null
 }

@@ -7,7 +7,7 @@ interface EligibilityModalProps {
   productTitle: string
   clinicDomain: string
   onClose: () => void
-  onApproved: (eligibilityData: Record<string, any>) => void
+  onApproved: (eligibilityData: Record<string, any>) => Promise<void>
 }
 
 interface FormData {
@@ -62,23 +62,11 @@ function calcBMI(ft: number, inches: number, lbs: number): number {
   return (lbs / (totalInches * totalInches)) * 703
 }
 
-const BACKEND = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
-
-const TENANT_KEYS: Record<string, string> = {
-  "localhost:8000":               "pk_0d04e5f39f21233de48aae0826522a81a13223024535549c62bdeca3a904b54d",
-  "spaderx.local:8000":          "pk_c05a977ce3aa7edbe18eb8627d240cc79e3b85a56a77758e5852fe419a796d9b",
-  "spaderx.com":                 "pk_c05a977ce3aa7edbe18eb8627d240cc79e3b85a56a77758e5852fe419a796d9b",
-  "myclassywellness.local:8000": "pk_9b161fb22ef604acba9c3a9f5559297c57f1de3dba630653e356157984961374",
-  "myclassywellness.com":        "pk_9b161fb22ef604acba9c3a9f5559297c57f1de3dba630653e356157984961374",
-  "contour-wellness.local:8000": "pk_f034439d37fa0d6da706d0eccd8ce5499532b67ba17af9bdf64fefe864abefdb",
-  "contour-wellness.com":        "pk_f034439d37fa0d6da706d0eccd8ce5499532b67ba17af9bdf64fefe864abefdb",
-}
 function getPublishableKey(): string {
   if (typeof window === "undefined") return process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
   if ((window as any).__TENANT_API_KEY__) return (window as any).__TENANT_API_KEY__
-  return TENANT_KEYS[window.location.host] || process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
+  return process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 }
-const PUB_KEY = getPublishableKey()
 
 export default function EligibilityModal({
   productId, productTitle, clinicDomain, onClose, onApproved,
@@ -94,11 +82,16 @@ export default function EligibilityModal({
   const totalSteps = form.sex === "female" ? 7 : 6
 
   useEffect(() => {
-    fetch(`${BACKEND}/store/eligibility/states?domain=${clinicDomain}`, {
-      headers: { "x-publishable-api-key": PUB_KEY }
+    fetch(`/api/eligibility-states?domain=${encodeURIComponent(clinicDomain)}`, {
+      headers: { "x-publishable-api-key": getPublishableKey() }
     })
       .then(r => r.json())
       .then(d => {
+        if (d.message && !d.locations) {
+          console.error("[EligStates] backend error:", d.message)
+          setError(`Failed to load states: ${d.message}`)
+          return
+        }
         const seen = new Set<string>()
         const unique = (d.locations || []).filter((l: any) => {
           if (seen.has(l.state)) return false
@@ -106,8 +99,13 @@ export default function EligibilityModal({
           return true
         })
         setStates(unique)
+        if (unique.length === 0) setError("")
       })
-      .catch(() => setError("Failed to load available states"))
+      .catch(err => {
+        console.error("[EligStates] fetch error:", err)
+        setStates([])
+        setError("")
+      })
       .finally(() => setLoadingStates(false))
   }, [clinicDomain])
 
@@ -121,6 +119,14 @@ export default function EligibilityModal({
     }
     if (step === 2) {
       if (!form.dob) return setError("Please enter your date of birth")
+      // Age validation: must be between 15 and 100
+      const today = new Date()
+      const birth = new Date(form.dob)
+      let age = today.getFullYear() - birth.getFullYear()
+      const monthDiff = today.getMonth() - birth.getMonth()
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--
+      if (age < 15) return setError("You must be at least 15 years old to continue.")
+      if (age > 100) return setError("Please enter a valid date of birth.")
       if (!form.sex) return setError("Please select your sex")
     }
     if (step === 3 && form.sex === "female") {
@@ -159,23 +165,30 @@ export default function EligibilityModal({
       .join(", ")
     const allMeds = form.otherMedication ? `${meds}, ${form.otherMedication}` : meds
 
-    onApproved({
-      domain: clinicDomain,
-      productId,
-      locationId: form.locationId,
-      state: form.state,
-      dob: form.dob,
-      sex: form.sex,
-      pregnancy: form.sex === "female" ? form.pregnancy : null,
-      medicalHistory: form.hasMedicalConditions ? form.medicalConditions : "None",
-      allergies: form.hasAllergies ? form.allergies : "None",
-      currentMedications: allMeds || "None",
-      heightFt: form.heightFt,
-      heightIn: form.heightIn,
-      weightLbs: form.weightLbs,
-      goalWeightLbs: form.goalWeightLbs,
-      bmi: Math.round(bmi * 10) / 10,
-    })
+    setSubmitting(true)
+    setError("")
+    try {
+      await onApproved({
+        domain: clinicDomain,
+        productId,
+        locationId: form.locationId,
+        state: form.state,
+        dob: form.dob,
+        sex: form.sex,
+        pregnancy: form.sex === "female" ? form.pregnancy : null,
+        medicalHistory: form.hasMedicalConditions ? form.medicalConditions : "None",
+        allergies: form.hasAllergies ? form.allergies : "None",
+        currentMedications: allMeds || "None",
+        heightFt: form.heightFt,
+        heightIn: form.heightIn,
+        weightLbs: form.weightLbs,
+        goalWeightLbs: form.goalWeightLbs,
+        bmi: Math.round(bmi * 10) / 10,
+      })
+    } catch {
+      setError("Something went wrong. Please try again.")
+      setSubmitting(false)
+    }
   }
 
   const stepLabel = (form.sex === "female")
@@ -231,6 +244,18 @@ export default function EligibilityModal({
               <p style={s.subtitle}>We can only provide service in states where our clinic is licensed.</p>
               {loadingStates ? (
                 <div style={s.loading}>Loading available states…</div>
+              ) : states.length === 0 ? (
+                <div>
+                  <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>
+                    Please enter your state to continue.
+                  </p>
+                  <input
+                    style={s.input}
+                    placeholder="e.g. California"
+                    value={form.state}
+                    onChange={e => setForm(p => ({ ...p, state: e.target.value, locationId: 0 }))}
+                  />
+                </div>
               ) : (
                 <div style={s.stateGrid}>
                   {states.map(l => (
@@ -263,7 +288,8 @@ export default function EligibilityModal({
                 <label style={s.label}>Date of Birth</label>
                 <input type="date" style={s.input}
                   value={form.dob}
-                  max={new Date().toISOString().split("T")[0]}
+                  min={(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 100); return d.toISOString().split("T")[0] })()}
+                  max={(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 15); return d.toISOString().split("T")[0] })()}
                   onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
               </div>
               <div style={s.fieldGroup}>
@@ -460,6 +486,29 @@ export default function EligibilityModal({
           </div>
         )}
 
+        {/* Full-screen loading overlay while adding to cart */}
+        {submitting && (
+          <div style={{
+            position: "absolute", inset: 0, borderRadius: 16,
+            background: "rgba(255,255,255,0.92)",
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            gap: 16, zIndex: 10,
+          }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: "50%",
+              border: "4px solid #e5e7eb",
+              borderTopColor: "var(--color-primary, #111)",
+              animation: "mhc-modal-spin 0.8s linear infinite",
+            }} />
+            <style>{`@keyframes mhc-modal-spin { to { transform: rotate(360deg); } }`}</style>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#111" }}>Adding to cart…</div>
+            <div style={{ fontSize: 13, color: "#6b7280", textAlign: "center", maxWidth: 240 }}>
+              Please wait while we prepare your cart.
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   )
@@ -477,7 +526,7 @@ const s: Record<string, React.CSSProperties> = {
   backBtn: { width: 32, height: 32, borderRadius: "50%", border: "1px solid #e5e7eb", background: "#f9fafb", cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" },
   closeBtn: { width: 32, height: 32, borderRadius: "50%", border: "none", background: "none", cursor: "pointer", fontSize: 20, color: "#9ca3af" },
   progressBar: { height: 3, background: "#f3f4f6" },
-  progressFill: { height: "100%", background: "#C9A84C", transition: "width 0.3s ease" },
+  progressFill: { height: "100%", background: "var(--color-primary, #C9A84C)", transition: "width 0.3s ease" },
   body: { flex: 1, overflowY: "auto", padding: "24px 28px" },
   footer: { padding: "16px 28px", borderTop: "1px solid #f3f4f6", background: "#fff" },
   stepWrap: { display: "flex", flexDirection: "column", gap: 16 },
@@ -489,16 +538,14 @@ const s: Record<string, React.CSSProperties> = {
   select: { width: "100%", padding: "12px 14px", border: "1px solid #e5e7eb", borderRadius: 10, fontSize: 15, color: "#111", background: "#fff", outline: "none", boxSizing: "border-box" },
   textarea: { width: "100%", padding: "12px 14px", border: "1px solid #e5e7eb", borderRadius: 10, fontSize: 14, color: "#111", outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" },
   btnRow: { display: "flex", gap: 10 },
-  optionBtn: { flex: 1, padding: "14px 20px", borderRadius: 10, border: "2px solid #e5e7eb", background: "#fff", fontSize: 15, fontWeight: 500, cursor: "pointer", transition: "all 0.15s", color: "#374151" },
-  optionBtnActive: { border: "2px solid #C9A84C", background: "#C9A84C", color: "#fff", fontWeight: 700 },
-  // State grid: pill buttons, no dividers, auto-advance on tap
+  optionBtn: { flex: 1, padding: "14px 20px", borderRadius: 16, border: "2px solid #e5e7eb", background: "#fff", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all 0.15s", color: "#374151" },
+  optionBtnActive: { border: "2px solid var(--color-primary, #C9A84C)", background: "var(--color-primary, #C9A84C)", color: "var(--button-text, #fff)", fontWeight: 700 },
   stateGrid: { display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8 },
   stateBtn: { padding: "10px 18px", borderRadius: 20, border: "2px solid #e5e7eb", background: "#fff", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all 0.15s", color: "#374151" },
-  stateBtnActive: { border: "2px solid #C9A84C", background: "#C9A84C", color: "#fff", fontWeight: 700 },
-  // Medications: compact, no borders between items
+  stateBtnActive: { border: "2px solid var(--color-primary, #C9A84C)", background: "var(--color-primary, #C9A84C)", color: "var(--button-text, #fff)", fontWeight: 700 },
   checkLabel: { display: "flex", alignItems: "center", gap: 12, padding: "8px 4px", fontSize: 14, color: "#374151", cursor: "pointer" },
-  checkbox: { width: 18, height: 18, accentColor: "#C9A84C", flexShrink: 0, cursor: "pointer" },
-  btnPrimary: { width: "100%", padding: "14px", borderRadius: 10, border: "none", background: "#C9A84C", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" },
+  checkbox: { width: 18, height: 18, accentColor: "var(--color-primary, #C9A84C)" as any, flexShrink: 0, cursor: "pointer" },
+  btnPrimary: { width: "100%", padding: "14px", borderRadius: 16, border: "none", background: "var(--color-primary, #C9A84C)", color: "var(--button-text, #fff)", fontSize: 14, fontWeight: 700, cursor: "pointer" },
   errorMsg: { color: "#dc2626", fontSize: 13, marginBottom: 10, textAlign: "center" },
   loading: { textAlign: "center", color: "#9ca3af", padding: 24 },
   warningBox: { background: "#fef9ec", border: "1px solid #f0d080", borderRadius: 10, padding: "14px 16px", fontSize: 13, color: "#92400e" },
@@ -507,5 +554,5 @@ const s: Record<string, React.CSSProperties> = {
   blockedText: { fontSize: 14, color: "#374151", lineHeight: 1.6, maxWidth: 380, margin: 0 },
   bmiBox: { display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10, padding: "12px 16px" },
   bmiLabel: { fontSize: 13, color: "#6b7280", fontWeight: 600 },
-  bmiValue: { fontSize: 24, fontWeight: 800, color: "#C9A84C" },
+  bmiValue: { fontSize: 24, fontWeight: 800, color: "var(--color-primary, #C9A84C)" },
 }

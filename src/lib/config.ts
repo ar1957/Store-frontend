@@ -16,12 +16,24 @@ sdk.client.fetch = async <T>(input: FetchInput, init?: FetchArgs): Promise<T> =>
   let activeKey = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
 
   if (typeof window === "undefined") {
-    // SERVER-SIDE: Read from the middleware-injected header
+    // SERVER-SIDE: Try middleware-injected header first, then cookie fallback
+    // (server actions don't carry request headers, but they can read cookies)
     try {
       const { headers: nextHeaders } = await import("next/headers")
       const h = await nextHeaders()
-      activeKey = h.get("x-tenant-api-key") || activeKey
+      const headerKey = h.get("x-tenant-api-key")
+      if (headerKey) activeKey = headerKey
     } catch {}
+
+    // Fallback to cookie for server actions (which lose request headers)
+    if (activeKey === process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY) {
+      try {
+        const { cookies } = await import("next/headers")
+        const c = await cookies()
+        const cookieKey = c.get("x-tenant-api-key")?.value
+        if (cookieKey) activeKey = cookieKey
+      } catch {}
+    }
   } else {
     // CLIENT-SIDE: Read from the cookie set by middleware
     const match = document.cookie.match(new RegExp('(^| )x-tenant-api-key=([^;]+)'))
