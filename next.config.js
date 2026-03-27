@@ -42,6 +42,11 @@ const nextConfig = {
         protocol: "https",
         hostname: "medusa-server-testing.s3.us-east-1.amazonaws.com",
       },
+      {
+        // Production backend on Elastic Beanstalk
+        protocol: "https",
+        hostname: "medusa-backend-test.eba-t6prye2p.us-west-1.elasticbeanstalk.com",
+      },
       ...(S3_HOSTNAME && S3_PATHNAME
         ? [
             {
