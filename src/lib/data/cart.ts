@@ -156,6 +156,9 @@ export async function addToCart({
       revalidateTag(fulfillmentCacheTag)
     })
     .catch(medusaError)
+
+  // Return the cart ID so callers don't need to re-read the cookie
+  return cart.id
 }
 
 export async function updateLineItem({

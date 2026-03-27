@@ -277,35 +277,14 @@ export default function ProductActions({
     setIsAdding(true)
 
     try {
-      // 1. Add to cart first (creates cart if needed)
-      await addToCart({
+      // 1. Add to cart — returns the cart ID directly, no cookie read needed
+      const cartId = await addToCart({
         variantId: selectedVariant!.id,
         quantity: 1,
         countryCode,
-      })
-
-      // 2. Use cart ID passed from server (via ProductActionsWrapper)
-      // If not available yet (first ever cart), fetch it — retry a few times
-      // since addToCart may need a moment to create and set the cookie
-      let cartId = initialCartId
-      if (!cartId) {
-        // Cart cookie is httpOnly — must retrieve via server action, not client fetch
-        for (let attempt = 0; attempt < 5; attempt++) {
-          await new Promise(r => setTimeout(r, 800))
-          try {
-            const cart = await retrieveCart()
-            if (cart?.id) {
-              cartId = cart.id
-              break
-            }
-          } catch {}
-        }
-      }
+      }) || initialCartId
 
       if (!cartId) {
-        // Cart was added but we can't get the ID — navigate to cart anyway
-        // The item is in the cart, user can proceed from there
-        console.warn("Could not retrieve cart ID after addToCart — navigating to cart anyway")
         router.push(`/${countryCode}/cart`)
         return
       }
