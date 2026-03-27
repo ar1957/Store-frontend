@@ -1,1 +1,1 @@
-web: next start -p 8080
+web: npx next start -p 8080
