@@ -290,8 +290,8 @@ export default function ProductActions({
       let cartId = initialCartId
       if (!cartId) {
         // Cart cookie is httpOnly — must retrieve via server action, not client fetch
-        for (let attempt = 0; attempt < 3; attempt++) {
-          if (attempt > 0) await new Promise(r => setTimeout(r, 500))
+        for (let attempt = 0; attempt < 5; attempt++) {
+          await new Promise(r => setTimeout(r, 800))
           try {
             const cart = await retrieveCart()
             if (cart?.id) {
@@ -303,7 +303,9 @@ export default function ProductActions({
       }
 
       if (!cartId) {
-        console.error("Could not retrieve cart ID")
+        // Cart was added but we can't get the ID — navigate to cart anyway
+        // The item is in the cart, user can proceed from there
+        console.warn("Could not retrieve cart ID after addToCart — navigating to cart anyway")
         router.push(`/${countryCode}/cart`)
         return
       }
