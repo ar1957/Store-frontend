@@ -5,8 +5,9 @@ import { placeOrder } from "@lib/data/cart"
 import { HttpTypes } from "@medusajs/types"
 import { Button } from "@medusajs/ui"
 import { useElements, useStripe } from "@stripe/react-stripe-js"
-import React, { useState } from "react"
+import React, { useContext, useState } from "react"
 import ErrorMessage from "../error-message"
+import { StripeContext } from "../payment-wrapper/stripe-wrapper"
 
 type PaymentButtonProps = {
   cart: HttpTypes.StoreCart
@@ -115,6 +116,27 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
 }
 
 const StripePaymentButton = ({
+  cart,
+  notReady,
+  "data-testid": dataTestId,
+  onBeforeSubmit,
+}: {
+  cart: HttpTypes.StoreCart
+  notReady: boolean
+  "data-testid"?: string
+  onBeforeSubmit?: () => Promise<void>
+}) => {
+  const stripeReady = useContext(StripeContext)
+
+  // Don't render until inside Elements provider — prevents useStripe() crash
+  if (!stripeReady) {
+    return <Button disabled size="large" className="w-full">Place order</Button>
+  }
+
+  return <StripePaymentButtonInner cart={cart} notReady={notReady} data-testid={dataTestId} onBeforeSubmit={onBeforeSubmit} />
+}
+
+const StripePaymentButtonInner = ({
   cart,
   notReady,
   "data-testid": dataTestId,
