@@ -1,9 +1,8 @@
-"use client"
-import { useState } from "react"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import CartButton from "@modules/layout/components/cart-button"
 import { MagnifyingGlass } from "@medusajs/icons"
 import NavDropdown from "./nav-dropdown"
+import MobileMenu from "./mobile-menu"
 
 type NavLink = { label: string; url: string; open_new_tab?: boolean; children?: NavLink[] }
 
@@ -18,7 +17,6 @@ export default function Nav({ logoUrl, getStartedUrl, navLinks, clinicName }: Na
   const links = navLinks && navLinks.length > 0 ? navLinks : []
   const startUrl = getStartedUrl || "/store"
   const startIsExternal = startUrl.startsWith("http://") || startUrl.startsWith("https://")
-  const [menuOpen, setMenuOpen] = useState(false)
 
   return (
     <header className="sticky top-0 inset-x-0 z-50 group">
@@ -72,53 +70,9 @@ export default function Nav({ logoUrl, getStartedUrl, navLinks, clinicName }: Na
               Get Started
             </LocalizedClientLink>
           )}
-          {/* Hamburger — mobile only, only if there are nav links */}
-          {links.length > 0 && (
-            <button
-              className="lg:hidden flex flex-col justify-center items-center gap-1 p-1"
-              onClick={() => setMenuOpen(o => !o)}
-              aria-label="Menu"
-            >
-              <span style={{ display: "block", width: 22, height: 2, background: "#111", borderRadius: 2, transition: "all 0.2s", transform: menuOpen ? "rotate(45deg) translate(3px, 3px)" : "none" }} />
-              <span style={{ display: "block", width: 22, height: 2, background: "#111", borderRadius: 2, transition: "all 0.2s", opacity: menuOpen ? 0 : 1 }} />
-              <span style={{ display: "block", width: 22, height: 2, background: "#111", borderRadius: 2, transition: "all 0.2s", transform: menuOpen ? "rotate(-45deg) translate(3px, -3px)" : "none" }} />
-            </button>
-          )}
+          {links.length > 0 && <MobileMenu links={links} />}
         </div>
       </nav>
-
-      {/* Mobile menu dropdown */}
-      {menuOpen && links.length > 0 && (
-        <div className="lg:hidden bg-white border-b border-ui-border-base shadow-md">
-          <div className="content-container py-4 flex flex-col gap-3">
-            {links.map((link, i) => (
-              <div key={i}>
-                <a
-                  href={link.url}
-                  target={link.open_new_tab ? "_blank" : undefined}
-                  rel={link.open_new_tab ? "noopener noreferrer" : undefined}
-                  onClick={() => setMenuOpen(false)}
-                  className="block text-sm font-bold uppercase tracking-wider text-black py-1 hover:opacity-70"
-                >
-                  {link.label}
-                </a>
-                {link.children && link.children.map((child, j) => (
-                  <a
-                    key={j}
-                    href={child.url}
-                    target={child.open_new_tab ? "_blank" : undefined}
-                    rel={child.open_new_tab ? "noopener noreferrer" : undefined}
-                    onClick={() => setMenuOpen(false)}
-                    className="block text-sm text-gray-600 py-1 pl-4 hover:opacity-70"
-                  >
-                    {child.label}
-                  </a>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </header>
   )
 }
