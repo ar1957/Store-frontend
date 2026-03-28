@@ -1,14 +1,7 @@
 "use client"
 
-/**
- * VirtualRoomRedirect component
- * File: src/modules/order/components/virtual-room-redirect/index.tsx
- *
- * Drop this into the order confirmation page.
- * If the order has a virtualRoomUrl in metadata, shows a prompt to join.
- */
-
 import { useEffect, useState } from "react"
+import { useParams } from "next/navigation"
 
 interface Props {
   orderId: string
@@ -16,20 +9,21 @@ interface Props {
 }
 
 export default function VirtualRoomRedirect({ orderId, metadata }: Props) {
+  const params = useParams()
+  const countryCode = (params?.countryCode as string) || "us"
   const [virtualRoomUrl, setVirtualRoomUrl] = useState<string | null>(null)
   const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    // Check if order already has virtualRoomUrl in metadata
     if (metadata?.virtualRoomUrl) {
       setVirtualRoomUrl(metadata.virtualRoomUrl)
       setChecking(false)
       return
     }
 
-    // Poll for up to 30 seconds waiting for subscriber to create GFE
+    // Poll for up to 90 seconds — AWS GFE API can take longer than local
     let attempts = 0
-    const maxAttempts = 10
+    const maxAttempts = 30
 
     const poll = async () => {
       try {
@@ -56,12 +50,11 @@ export default function VirtualRoomRedirect({ orderId, metadata }: Props) {
       if (attempts < maxAttempts) {
         setTimeout(poll, 3000)
       } else {
-        // Stop polling but keep showing the waiting state — don't hide the component
         setChecking(false)
       }
     }
 
-    setTimeout(poll, 3000) // Start polling after 3s delay
+    setTimeout(poll, 2000)
   }, [orderId, metadata])
 
   if (!virtualRoomUrl && !checking) {
@@ -71,7 +64,7 @@ export default function VirtualRoomRedirect({ orderId, metadata }: Props) {
         <p style={s.text}>
           Your consultation has been created. A provider will review your information shortly.
           You can check back on your{" "}
-          <a href={`/order/status`} style={{ color: "var(--color-primary, #C9A84C)" }}>order status page</a>
+          <a href={`/${countryCode}/order/status`} style={{ color: "var(--color-primary, #C9A84C)" }}>order status page</a>
           {" "}for updates.
         </p>
       </div>
@@ -100,7 +93,7 @@ export default function VirtualRoomRedirect({ orderId, metadata }: Props) {
       </a>
       <p style={s.hint}>
         You can also access this link from your{" "}
-        <a href={`/order/status`} style={{ color: "var(--color-primary, #C9A84C)" }}>order status page</a>
+        <a href={`/${countryCode}/order/status`} style={{ color: "var(--color-primary, #C9A84C)" }}>order status page</a>
         {" "}at any time.
       </p>
     </div>
