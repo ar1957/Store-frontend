@@ -8,8 +8,8 @@ type ProductInfoProps = {
 
 const ProductInfo = ({ product }: ProductInfoProps) => {
   return (
-    <div id="product-info">
-      <div className="flex flex-col gap-y-4 lg:max-w-[500px] mx-auto">
+    <div id="product-info" className="w-full">
+      <div className="flex flex-col gap-y-4 w-full">
         {product.collection && (
           <LocalizedClientLink
             href={`/collections/${product.collection.handle}`}
@@ -26,12 +26,36 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
           {product.title}
         </Heading>
 
-        <Text
-          className="text-medium text-ui-fg-subtle whitespace-pre-line"
-          data-testid="product-description"
-        >
-          {product.description}
-        </Text>
+        {product.subtitle && (
+          product.subtitle.includes("<") ? (
+            <div
+              className="text-medium text-ui-fg-subtle"
+              data-testid="product-subtitle"
+              dangerouslySetInnerHTML={{ __html: product.subtitle }}
+            />
+          ) : (
+            <Text className="text-medium text-ui-fg-subtle font-semibold" data-testid="product-subtitle">
+              {product.subtitle}
+            </Text>
+          )
+        )}
+
+        {product.description && (
+          product.description.includes("<") ? (
+            <div
+              className="text-medium text-ui-fg-subtle prose prose-sm max-w-none"
+              data-testid="product-description"
+              dangerouslySetInnerHTML={{ __html: product.description }}
+            />
+          ) : (
+            <Text
+              className="text-medium text-ui-fg-subtle whitespace-pre-line"
+              data-testid="product-description"
+            >
+              {product.description}
+            </Text>
+          )
+        )}
       </div>
     </div>
   )

@@ -150,3 +150,13 @@ button {
     @apply text-[32px] leading-[44px] font-semibold;
   }
 }
+
+/* Product subtitle HTML rendering */
+.subtitle-html ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin: 0;
+}
+.subtitle-html li {
+  margin-bottom: 4px;
+}

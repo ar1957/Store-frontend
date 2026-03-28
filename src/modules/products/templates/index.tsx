@@ -33,13 +33,13 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
         data-testid="product-container"
       >
         <div className="flex flex-col lg:grid lg:grid-cols-2 gap-x-12 mb-12">
-          {/* LEFT COLUMN: Product Image */}
+          {/* LEFT COLUMN: Product Image with name overlay */}
           <div className="block w-full relative">
-            <ImageGallery images={images} />
+            <ImageGallery images={images} productTitle={product.title} />
           </div>
 
           {/* RIGHT COLUMN: Intake Card */}
-          <div className="flex flex-col bg-white p-8 rounded-2xl border border-gray-100 shadow-sm text-center">
+          <div className="flex flex-col bg-white p-8 rounded-2xl border border-gray-100 shadow-sm text-center mt-6 lg:mt-0">
             <div className="mb-8">
               <h1 className="text-4xl font-bold mb-2 text-black">Let's Get Started</h1>
               <p className="text-xs uppercase tracking-widest text-gray-400 font-semibold">
@@ -84,12 +84,9 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
           </div>
         </div>
 
-        {/* BOTTOM SECTION: Just Product Info/Description */}
-        <div className="w-full py-12 border-t border-gray-100">
-          <div className="max-w-4xl mx-auto">
-            <ProductInfo product={product} />
-            {/* ProductTabs removed to hide Information/Shipping accordions */}
-          </div>
+        {/* BOTTOM SECTION: Full-width Product Description */}
+        <div className="w-full py-10 border-t border-gray-100">
+          <ProductInfo product={product} />
         </div>
       </div>
 
