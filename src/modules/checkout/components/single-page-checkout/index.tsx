@@ -204,6 +204,7 @@ export default function SinglePageCheckout({
   const paidByGiftcard = cartAny?.gift_cards?.length > 0 && cartAny?.total === 0
   const zeroTotal = (cartAny?.total ?? 1) === 0
   const noPaymentNeeded = paidByGiftcard || zeroTotal
+  const countryCode = cart.shipping_address?.country_code?.toLowerCase() || "us"
 
   const canPlaceOrder =
     addressComplete &&
@@ -340,7 +341,7 @@ export default function SinglePageCheckout({
         <p className="text-sm text-ui-fg-muted mb-6">
           Your personal data will be used to process your order, support your experience
           throughout this website, and for other purposes described in our{" "}
-          <a href="/privacy-policy" className="text-ui-fg-interactive hover:underline">privacy policy</a>.
+          <a href={`/${countryCode}/privacy-policy`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">privacy policy</a>.
         </p>
 
         <div className="flex flex-col gap-y-4 mb-6">
@@ -350,7 +351,7 @@ export default function SinglePageCheckout({
               className="mt-0.5 w-4 h-4 accent-ui-fg-interactive flex-shrink-0" />
             <span className="text-sm text-ui-fg-base">
               I have read and agree to the website{" "}
-              <a href="/terms" className="text-ui-fg-interactive hover:underline">terms and conditions</a>{" "}
+              <a href={`/${countryCode}/terms`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">terms and conditions</a>{" "}
               <span className="text-red-500">*</span>
             </span>
           </label>
@@ -360,12 +361,12 @@ export default function SinglePageCheckout({
               className="mt-0.5 w-4 h-4 accent-ui-fg-interactive flex-shrink-0" />
             <span className="text-sm text-ui-fg-base">
               I consent to the{" "}
-              <a href="/privacy-policy" className="text-ui-fg-interactive hover:underline">privacy policy</a>,{" "}
-              <a href="/telehealth" className="text-ui-fg-interactive hover:underline">telehealth</a>,{" "}
-              <a href="/terms" className="text-ui-fg-interactive hover:underline">terms and conditions</a>,{" "}
-              <a href="/purchase-terms" className="text-ui-fg-interactive hover:underline">purchase terms</a>,{" "}
-              <a href="/glp1-waiver" className="text-ui-fg-interactive hover:underline">GLP-1 treatment laboratory testing waiver</a>, and{" "}
-              <a href="/shipping-policy" className="text-ui-fg-interactive hover:underline">shipping, refund and return policy</a>.
+              <a href={`/${countryCode}/privacy-policy`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">privacy policy</a>,{" "}
+              <a href={`/${countryCode}/telehealth`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">telehealth</a>,{" "}
+              <a href={`/${countryCode}/terms`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">terms and conditions</a>,{" "}
+              <a href={`/${countryCode}/purchase-terms`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">purchase terms</a>,{" "}
+              <a href={`/${countryCode}/glp1-waiver`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">GLP-1 treatment laboratory testing waiver</a>, and{" "}
+              <a href={`/${countryCode}/shipping-policy`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">shipping, refund and return policy</a>.
             </span>
           </label>
         </div>

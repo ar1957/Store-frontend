@@ -47,6 +47,11 @@ const nextConfig = {
         protocol: "https",
         hostname: "medusa-backend-test.eba-t6prye2p.us-west-1.elasticbeanstalk.com",
       },
+      {
+        // S3 bucket for product images
+        protocol: "https",
+        hostname: "gocbeglobal-dev.s3.us-west-1.amazonaws.com",
+      },
       ...(S3_HOSTNAME && S3_PATHNAME
         ? [
             {
