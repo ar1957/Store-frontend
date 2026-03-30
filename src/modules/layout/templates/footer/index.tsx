@@ -138,7 +138,7 @@ export default async function Footer({
               </address>
             )}
             {certificationImageUrl && (
-              <img src={certificationImageUrl} alt="Certification badge" className="max-h-20 max-w-[130px] object-contain mt-1" referrerPolicy="no-referrer" />
+              <img src={certificationImageUrl} alt="Certification badge" className="max-h-20 max-w-[130px] object-contain mt-1" />
             )}
           </div>
 

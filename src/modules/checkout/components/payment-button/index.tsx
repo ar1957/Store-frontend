@@ -152,7 +152,6 @@ const StripePaymentButtonInner = ({
 
   const stripe = useStripe()
   const elements = useElements()
-  const card = elements?.getElement("card")
 
   const session = cart.payment_collection?.payment_sessions?.find(
     (s) => s.status === "pending"
@@ -180,7 +179,7 @@ const StripePaymentButtonInner = ({
   const handlePayment = async () => {
     if (submitting) return
     setSubmitting(true)
-    if (!stripe || !elements || !card || !cart) {
+    if (!stripe || !elements || !cart) {
       setSubmitting(false)
       return
     }
@@ -193,29 +192,38 @@ const StripePaymentButtonInner = ({
       }
     }
 
-    await stripe
-      .confirmCardPayment(session?.data.client_secret as string, {
-        payment_method: {
-          card: card,
+    // Submit the Elements form first (required for Payment Element)
+    const { error: submitError } = await elements.submit()
+    if (submitError) {
+      setErrorMessage(submitError.message || "Payment failed")
+      setSubmitting(false)
+      return
+    }
+
+    const { error, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      clientSecret: session?.data.client_secret as string,
+      confirmParams: {
+        return_url: `${window.location.origin}${window.location.pathname}?payment_return=1`,
+        payment_method_data: {
           billing_details: {
             name: `${cart.billing_address?.first_name ?? ""} ${cart.billing_address?.last_name ?? ""}`,
-            email: cart.email,
+            email: cart.email ?? undefined,
           },
         },
-      })
-      .then(({ error, paymentIntent }) => {
-        if (error) {
-          setErrorMessage(error.message || "Payment failed")
-          setSubmitting(false)
-          return
-        }
-        if (
-          paymentIntent?.status === "succeeded" ||
-          paymentIntent?.status === "requires_capture"
-        ) {
-          onPaymentCompleted()
-        }
-      })
+      },
+      redirect: "if_required",
+    })
+
+    if (error) {
+      setErrorMessage(error.message || "Payment failed")
+      setSubmitting(false)
+      return
+    }
+
+    if (paymentIntent?.status === "succeeded" || paymentIntent?.status === "requires_capture") {
+      onPaymentCompleted()
+    }
   }
 
   return (

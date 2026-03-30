@@ -22,6 +22,14 @@ const StripeWrapper: React.FC<StripeWrapperProps> = ({
 }) => {
   const options: StripeElementsOptions = {
     clientSecret: paymentSession!.data?.client_secret as string | undefined,
+    appearance: {
+      theme: "stripe",
+      variables: {
+        colorPrimary: "var(--color-primary, #111)",
+        borderRadius: "8px",
+        fontFamily: "Inter, sans-serif",
+      },
+    },
   }
 
   // FIXED: Instead of throwing an error (which crashes the app), we return a loading state.

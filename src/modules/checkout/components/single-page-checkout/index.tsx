@@ -22,6 +22,8 @@ import BillingAddress from "@modules/checkout/components/billing_address"
 import compareAddresses from "@lib/util/compare-addresses"
 import EligibilityModal from "@modules/products/components/eligibility-modal"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { useStripe } from "@stripe/react-stripe-js"
 
 type Props = {
   cart: HttpTypes.StoreCart
@@ -205,6 +207,26 @@ export default function SinglePageCheckout({
   const zeroTotal = (cartAny?.total ?? 1) === 0
   const noPaymentNeeded = paidByGiftcard || zeroTotal
   const countryCode = cart.shipping_address?.country_code?.toLowerCase() || "us"
+
+  // ── Handle Stripe redirect return (Affirm/Klarna cancel or success) ──
+  const searchParams = useSearchParams()
+  const stripeHook = (() => { try { return useStripe() } catch { return null } })()
+  useEffect(() => {
+    if (!searchParams.get("payment_return")) return
+    const clientSecret = searchParams.get("payment_intent_client_secret")
+    if (!clientSecret || !stripeHook) return
+    stripeHook.retrievePaymentIntent(clientSecret).then(({ paymentIntent }) => {
+      if (paymentIntent?.status === "succeeded" || paymentIntent?.status === "requires_capture") {
+        // Payment succeeded via redirect — place the order
+        import("@lib/data/cart").then(({ placeOrder }) => placeOrder())
+      } else {
+        // Cancelled or failed — show error, stay on checkout
+        setPaymentError("Payment was cancelled or failed. Please try again.")
+        // Clean up URL params
+        window.history.replaceState({}, "", window.location.pathname)
+      }
+    })
+  }, [searchParams, stripeHook])
 
   const canPlaceOrder =
     addressComplete &&
