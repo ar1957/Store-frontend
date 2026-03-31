@@ -524,6 +524,21 @@ export async function saveShippingAddress(formData: FormData): Promise<string | 
     const sameAsBilling = formData.get("same_as_billing")
     if (sameAsBilling === "on") {
       data.billing_address = data.shipping_address
+    } else {
+      const billingFirstName = formData.get("billing_address.first_name")
+      if (billingFirstName) {
+        data.billing_address = {
+          first_name: formData.get("billing_address.first_name"),
+          last_name: formData.get("billing_address.last_name"),
+          address_1: formData.get("billing_address.address_1"),
+          address_2: "",
+          postal_code: formData.get("billing_address.postal_code"),
+          city: formData.get("billing_address.city"),
+          country_code: formData.get("billing_address.country_code") || "us",
+          province: formData.get("billing_address.province"),
+          phone: formData.get("billing_address.phone"),
+        }
+      }
     }
 
     await updateCart(data)

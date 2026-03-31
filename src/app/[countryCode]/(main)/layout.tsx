@@ -134,6 +134,7 @@ export default async function PageLayout(props: { children: React.ReactNode }) {
           __html: `
             window.__TENANT_API_KEY__ = ${JSON.stringify(tenantApiKey)};
             window.__TENANT_DOMAIN__ = ${JSON.stringify(tenantDomain)};
+            window.__GOOGLE_PLACES_KEY__ = ${JSON.stringify(process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY || "")};
           `,
         }}
       />
