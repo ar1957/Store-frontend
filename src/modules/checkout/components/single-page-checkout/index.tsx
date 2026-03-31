@@ -55,6 +55,10 @@ export default function SinglePageCheckout({
     email: cart.email || "",
   })
 
+const [billingFormData, setBillingFormData] = useState<Record<string, string>>({})
+const handleBillingFormDataChange = (data: Record<string, string>) => {
+  setBillingFormData(data)
+}
   const handleAddressFieldChange = useCallback((field: string, value: string) => {
     setAddressFields(p => ({ ...p, [field]: value }))
   }, [])
@@ -217,12 +221,9 @@ export default function SinglePageCheckout({
     if (!clientSecret || !stripeHook) return
     stripeHook.retrievePaymentIntent(clientSecret).then(({ paymentIntent }) => {
       if (paymentIntent?.status === "succeeded" || paymentIntent?.status === "requires_capture") {
-        // Payment succeeded via redirect — place the order
         import("@lib/data/cart").then(({ placeOrder }) => placeOrder())
       } else {
-        // Cancelled or failed — show error, stay on checkout
         setPaymentError("Payment was cancelled or failed. Please try again.")
-        // Clean up URL params
         window.history.replaceState({}, "", window.location.pathname)
       }
     })
@@ -255,7 +256,7 @@ export default function SinglePageCheckout({
           {!sameAsBilling && (
             <div className="mt-8">
               <h2 className="text-3xl-regular font-semibold pb-6">Billing Address</h2>
-              <BillingAddress cart={cart} />
+              <BillingAddress cart={cart} onFormDataChange={handleBillingFormDataChange} />
             </div>
           )}
         </form>
@@ -425,14 +426,18 @@ export default function SinglePageCheckout({
               noPaymentNeeded={noPaymentNeeded}
               data-testid="submit-order-button"
               onBeforeSubmit={async () => {
-                if (addressFormRef.current && !cart.shipping_address?.address_1) {
-                  try {
-                    const formData = new FormData(addressFormRef.current)
-                    if (sameAsBilling) formData.set("same_as_billing", "on")
-                    await saveShippingAddress(formData)
-                  } catch {
-                    // non-fatal
+                try {
+                  const formData = new FormData(addressFormRef.current!)
+                  if (sameAsBilling) {
+                    formData.set("same_as_billing", "on")
+                  } else {
+                    Object.entries(billingFormData).forEach(([key, value]) => {
+                      formData.set(key, value)
+                    })
                   }
+                  await saveShippingAddress(formData)
+                } catch {
+                  // non-fatal
                 }
               }}
             />

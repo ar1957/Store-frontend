@@ -160,3 +160,19 @@ button {
 .subtitle-html li {
   margin-bottom: 4px;
 }
+
+/* Google Places autocomplete dropdown */
+.pac-container {
+  z-index: 99999 !important;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  font-family: Inter, sans-serif;
+  font-size: 14px;
+}
+.pac-item {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.pac-item:hover {
+  background: #f3f4f6;
+}
