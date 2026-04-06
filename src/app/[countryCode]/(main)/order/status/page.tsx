@@ -28,6 +28,8 @@ interface OrderResult {
   statusLabel: string
   providerName: string | null
   virtualRoomUrl?: string | null
+  pharmacyQueueId?: string | null
+  pharmacyStatus?: string | null
   tracking: { trackingNumber: string; carrier: string; shippedAt: string } | null
   createdAt: string
 }
@@ -203,6 +205,15 @@ export default function OrderLookupPage() {
                     <div style={s.detail}>Provider: <strong>{order.providerName}</strong></div>
                   )}
 
+                  {order.status === "processing_pharmacy" && order.pharmacyQueueId && (
+                    <div style={s.pharmacyBox}>
+                      <span style={s.pharmacyId}>Order ID: <strong>{order.pharmacyQueueId}</strong></span>
+                      {order.pharmacyStatus && (
+                        <span style={s.pharmacyBadge}>{order.pharmacyStatus}</span>
+                      )}
+                    </div>
+                  )}
+
                   {order.gfeId && connectMsg[order.gfeId] && (
                     <div style={{ fontSize: 12, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, padding: "8px 12px", marginBottom: 8 }}>
                       ⏳ {connectMsg[order.gfeId]}
@@ -274,4 +285,7 @@ const s: Record<string, React.CSSProperties> = {
   trackingBox: { fontSize: 13, color: "#374151", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "8px 12px", marginBottom: 12 },
   viewBtn: { display: "inline-block", marginTop: 12, padding: "9px 18px", background: "#111", color: "#fff", borderRadius: 16, fontSize: 14, fontWeight: 600, textDecoration: "none" },
   emptyBox: { background: "#fff", borderRadius: 14, padding: 32, textAlign: "center", color: "#374151", fontSize: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" },
+  pharmacyBox: { display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" as const },
+  pharmacyId: { fontSize: 12, color: "#374151" },
+  pharmacyBadge: { fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46", borderRadius: 20, padding: "2px 10px" },
 }
