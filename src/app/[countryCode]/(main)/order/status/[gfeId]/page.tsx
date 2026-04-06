@@ -12,12 +12,25 @@ import { useEffect, useState, useCallback, use } from "react"
 
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
+// Timeline steps — "pharmacy_received" is a virtual sub-step of processing_pharmacy
 const STATUS_STEPS = [
   { key: "pending_provider",    label: "Pending Provider Clearance", icon: "🩺" },
   { key: "pending_md_review",   label: "Pending Physician Review",   icon: "👨‍⚕️" },
   { key: "processing_pharmacy", label: "Processing by Pharmacy",     icon: "💊" },
+  { key: "pharmacy_received",   label: "Order Received by Pharmacy", icon: "📋" },
   { key: "shipped",             label: "Medication Shipped",         icon: "📦" },
 ]
+
+// Map real statuses to step index
+function getStepIndex(status: string, pharmacyStatus?: string | null): number {
+  if (status === "shipped") return 4
+  if (status === "processing_pharmacy") {
+    // If pharmacy has acknowledged the order (any non-empty status), show "pharmacy_received"
+    return pharmacyStatus ? 3 : 2
+  }
+  if (status === "pending_md_review") return 1
+  return 0 // pending_provider
+}
 
 const STATUS_DESCRIPTIONS: Record<string, string> = {
   pending_provider:    "Your information has been submitted. A provider will review your consultation shortly.",
@@ -41,6 +54,8 @@ interface OrderStatus {
   statusLabel: string
   statusDescription: string
   virtualRoomUrl: string | null
+  pharmacyQueueId: string | null
+  pharmacyStatus: string | null
   tracking: { trackingNumber: string; carrier: string; shippedAt: string } | null
   timeline: Record<string, string | null>
 }
@@ -80,7 +95,6 @@ export default function OrderStatusPage({ params: paramsPromise }: { params: Pro
     setRefreshing(true)
     try {
       await fetchStatus()
-
       if (data?.status === "pending_provider") {
         const pubKey = typeof window !== "undefined" ? ((window as any).__TENANT_API_KEY__ || PUB_KEY) : PUB_KEY
         const res = await fetch(`/api/order-status/${params.gfeId}`, {
@@ -99,9 +113,7 @@ export default function OrderStatusPage({ params: paramsPromise }: { params: Pro
     }
   }
 
-  useEffect(() => {
-    fetchStatus()
-  }, [fetchStatus])
+  useEffect(() => { fetchStatus() }, [fetchStatus])
 
   // Auto-poll every 30s while pending provider
   useEffect(() => {
@@ -129,7 +141,7 @@ export default function OrderStatusPage({ params: paramsPromise }: { params: Pro
   if (!data) return null
 
   const isRefundStatus = ["refund_pending", "refunded"].includes(data.status)
-  const currentStepIdx = STATUS_STEPS.findIndex(s => s.key === data.status)
+  const currentStepIdx = getStepIndex(data.status, data.pharmacyStatus)
 
   const trackingUrl = data.tracking
     ? (CARRIERS[data.tracking.carrier?.toLowerCase()] || "") + data.tracking.trackingNumber
@@ -143,16 +155,22 @@ export default function OrderStatusPage({ params: paramsPromise }: { params: Pro
         <div style={s.header}>
           <div style={s.headerIcon}>{isRefundStatus ? "↩️" : STATUS_STEPS[Math.max(0, currentStepIdx)]?.icon}</div>
           <h1 style={s.statusLabel}>{data.statusLabel}</h1>
-          <p style={s.statusDescription}>{STATUS_DESCRIPTIONS[data.status]}</p>
+          <p style={s.statusDescription}>{STATUS_DESCRIPTIONS[data.status] || data.statusDescription}</p>
         </div>
 
         {/* Progress timeline (not shown for refund) */}
         {!isRefundStatus && (
           <div style={s.timeline}>
             {STATUS_STEPS.map((step, i) => {
+              // Skip "pharmacy_received" step if there's no pharmacy status yet
+              if (step.key === "pharmacy_received" && !data.pharmacyStatus && data.status !== "shipped") return null
+              // Skip "pending_md_review" step if order never went through MD review
+              if (step.key === "pending_md_review" && currentStepIdx > 1 && data.status !== "pending_md_review") return null
+
               const done = i < currentStepIdx
               const active = i === currentStepIdx
               const future = i > currentStepIdx
+
               return (
                 <div key={step.key} style={s.timelineItem}>
                   <div style={{
@@ -168,10 +186,43 @@ export default function OrderStatusPage({ params: paramsPromise }: { params: Pro
                   )}
                   <div style={{ ...s.timelineLabel, color: future ? "#9ca3af" : "#111", fontWeight: active ? 700 : 400 }}>
                     {step.label}
+                    {/* Show pharmacy queue ID + status on the pharmacy_received step */}
+                    {step.key === "pharmacy_received" && active && data.pharmacyQueueId && (
+                      <div style={s.pharmacyMeta}>
+                        <span style={s.pharmacyMetaItem}>Order ID: <strong>{data.pharmacyQueueId}</strong></span>
+                        {data.pharmacyStatus && (
+                          <span style={s.pharmacyStatusBadge}>{data.pharmacyStatus}</span>
+                        )}
+                      </div>
+                    )}
+                    {/* Show tracking on shipped step */}
+                    {step.key === "shipped" && active && data.tracking && (
+                      <div style={s.pharmacyMeta}>
+                        <span style={s.pharmacyMetaItem}>Tracking: <strong>{data.tracking.trackingNumber}</strong></span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {/* Pharmacy info box — shown when at pharmacy */}
+        {(data.status === "processing_pharmacy") && data.pharmacyQueueId && (
+          <div style={s.infoBox}>
+            <p style={s.infoTitle}>💊 Pharmacy Order Details</p>
+            <div style={s.trackingRow}>
+              <span style={s.trackingLabel}>Order / Queue ID</span>
+              <span style={s.trackingValue}>{data.pharmacyQueueId}</span>
+            </div>
+            {data.pharmacyStatus && (
+              <div style={s.trackingRow}>
+                <span style={s.trackingLabel}>Status</span>
+                <span style={{ ...s.trackingValue, color: "#065f46", fontWeight: 700 }}>{data.pharmacyStatus}</span>
+              </div>
+            )}
+            <p style={s.infoNote}>We check for updates every 5 minutes. You'll be notified when your order ships.</p>
           </div>
         )}
 
@@ -241,10 +292,14 @@ const s: Record<string, React.CSSProperties> = {
   timelineDot: { width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0, color: "#fff", zIndex: 1 },
   timelineLine: { position: "absolute", left: 17, top: 36, width: 2, height: 32, zIndex: 0 } as any,
   timelineLabel: { fontSize: 14, paddingTop: 8, paddingBottom: 24 },
+  pharmacyMeta: { display: "flex", flexWrap: "wrap" as const, gap: 8, marginTop: 4, alignItems: "center" },
+  pharmacyMetaItem: { fontSize: 12, color: "#374151" },
+  pharmacyStatusBadge: { fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46", borderRadius: 20, padding: "2px 10px" },
   infoBox: { background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 12, padding: "18px 20px", marginBottom: 16 },
-  infoTitle: { fontSize: 13, fontWeight: 700, color: "#111", margin: "0 0 6px" },
+  infoTitle: { fontSize: 13, fontWeight: 700, color: "#111", margin: "0 0 10px" },
   infoText: { fontSize: 13, color: "#6b7280", margin: "0 0 14px" },
-  btn: { display: "block", textAlign: "center", padding: "12px 20px", background: "var(--color-primary, #C9A84C)", color: "var(--button-text, #fff)", borderRadius: 16, fontWeight: 700, fontSize: 14, textDecoration: "none" },
+  infoNote: { fontSize: 12, color: "#9ca3af", margin: "10px 0 0" },
+  btn: { display: "block", textAlign: "center", padding: "12px 20px", background: "var(--color-primary, #C9A84C)", color: "var(--button-text, #fff)", borderRadius: 16, fontWeight: 700, fontSize: 14, textDecoration: "none", marginTop: 12 },
   trackingRow: { display: "flex", justifyContent: "space-between", marginBottom: 6 },
   trackingLabel: { fontSize: 12, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase" as const },
   trackingValue: { fontSize: 13, color: "#111", fontWeight: 600 },
