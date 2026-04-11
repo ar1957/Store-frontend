@@ -2,6 +2,20 @@
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 
+@layer utilities {
+  /* ── Product description: restore HTML element rendering after Tailwind preflight ── */
+  [data-testid="product-description"] h1 { font-size: 1.6rem; font-weight: 700; margin: 1em 0 0.4em; color: #111; }
+  [data-testid="product-description"] h2 { font-size: 1.3rem; font-weight: 700; margin: 1em 0 0.4em; color: #111; }
+  [data-testid="product-description"] h3 { font-size: 1.1rem; font-weight: 700; margin: 0.9em 0 0.3em; color: #111; }
+  [data-testid="product-description"] h4 { font-size: 1rem; font-weight: 700; margin: 0.8em 0 0.3em; color: #111; }
+  [data-testid="product-description"] p  { margin: 0 0 0.75em; }
+  [data-testid="product-description"] ul { list-style-type: disc !important; padding-left: 1.5em !important; margin: 0 0 0.75em !important; }
+  [data-testid="product-description"] ol { list-style-type: decimal !important; padding-left: 1.5em !important; margin: 0 0 0.75em !important; }
+  [data-testid="product-description"] li { display: list-item !important; margin-bottom: 0.25em; }
+  [data-testid="product-description"] strong { font-weight: 700; }
+  [data-testid="product-description"] [data-asw-org-font-size] { font-size: inherit !important; }
+}
+
 /* ── Brand color overrides ───────────────────────────────────────────────────
    --color-primary and --button-text are injected into <head> by the root layout.
    ─────────────────────────────────────────────────────────────────────────── */
@@ -176,3 +190,39 @@ button {
 .pac-item:hover {
   background: #f3f4f6;
 }
+
+/* ── Product description HTML rendering ─────────────────────────────────── */
+[data-testid="product-description"] h1,
+[data-testid="product-description"] h2,
+[data-testid="product-description"] h3,
+[data-testid="product-description"] h4 {
+  font-weight: 700;
+  margin-top: 1.25em;
+  margin-bottom: 0.5em;
+  color: #111;
+}
+[data-testid="product-description"] h2 { font-size: 1.35rem; }
+[data-testid="product-description"] h3 { font-size: 1.1rem; }
+[data-testid="product-description"] p  { margin-bottom: 0.75em; }
+[data-testid="product-description"] ul,
+[data-testid="product-description"] ol {
+  padding-left: 1.5em;
+  margin-bottom: 0.75em;
+}
+[data-testid="product-description"] ul { list-style-type: disc; }
+[data-testid="product-description"] ol { list-style-type: decimal; }
+[data-testid="product-description"] li { margin-bottom: 0.25em; }
+[data-testid="product-description"] strong { font-weight: 700; }
+
+/* ── Product description rich HTML (class-based, high specificity) ───────── */
+.product-description-html { line-height: 1.7; color: #374151; font-size: 0.9375rem; }
+.product-description-html h1,
+.product-description-html h2 { font-size: 1.4rem !important; font-weight: 700 !important; margin-top: 1.4em !important; margin-bottom: 0.5em !important; color: #111 !important; display: block !important; }
+.product-description-html h3,
+.product-description-html h4 { font-size: 1.1rem !important; font-weight: 700 !important; margin-top: 1.2em !important; margin-bottom: 0.4em !important; color: #111 !important; display: block !important; }
+.product-description-html p  { margin-bottom: 0.8em !important; display: block !important; }
+.product-description-html ul { list-style-type: disc !important; padding-left: 1.5em !important; margin-bottom: 0.8em !important; display: block !important; }
+.product-description-html ol { list-style-type: decimal !important; padding-left: 1.5em !important; margin-bottom: 0.8em !important; display: block !important; }
+.product-description-html li { display: list-item !important; margin-bottom: 0.3em !important; }
+.product-description-html strong { font-weight: 700 !important; }
+.product-description-html span  { font-size: inherit !important; }
