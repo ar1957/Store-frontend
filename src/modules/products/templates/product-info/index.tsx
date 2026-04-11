@@ -6,6 +6,29 @@ type ProductInfoProps = {
   product: HttpTypes.StoreProduct
 }
 
+// Strip accessibility widget attributes that interfere with styling
+function cleanHtml(html: string): string {
+  return html.replace(/\s*data-asw-[a-z0-9-]+="[^"]*"/g, "")
+}
+
+// Detect if string is HTML (contains tags or encoded tags)
+function isHtml(str: string): boolean {
+  return str.includes("<") || str.includes("&lt;")
+}
+
+// Decode HTML entities if needed
+function decodeIfEncoded(str: string): string {
+  if (str.includes("&lt;")) {
+    return str
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+  }
+  return str
+}
+
 const ProductInfo = ({ product }: ProductInfoProps) => {
   return (
     <div id="product-info" className="w-full">
@@ -26,26 +49,12 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
           {product.title}
         </Heading>
 
-        {product.subtitle && (
-          product.subtitle.includes("<") ? (
-            <div
-              className="text-medium text-ui-fg-subtle"
-              data-testid="product-subtitle"
-              dangerouslySetInnerHTML={{ __html: product.subtitle }}
-            />
-          ) : (
-            <Text className="text-medium text-ui-fg-subtle font-semibold" data-testid="product-subtitle">
-              {product.subtitle}
-            </Text>
-          )
-        )}
-
         {product.description && (
-          product.description.includes("<") ? (
+          isHtml(product.description) ? (
             <div
-              className="text-medium text-ui-fg-subtle prose prose-sm max-w-none"
               data-testid="product-description"
-              dangerouslySetInnerHTML={{ __html: product.description }}
+              dangerouslySetInnerHTML={{ __html: cleanHtml(decodeIfEncoded(product.description)) }}
+              style={{ fontSize: "0.9375rem", lineHeight: "1.7", color: "#374151" }}
             />
           ) : (
             <Text
