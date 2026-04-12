@@ -1,5 +1,6 @@
 "use client"
 import { useState } from "react"
+import LocalizedClientLink from "@modules/common/components/localized-client-link"
 
 type NavLink = { label: string; url: string; open_new_tab?: boolean; children?: NavLink[] }
 
@@ -23,31 +24,56 @@ export default function MobileMenu({ links }: { links: NavLink[] }) {
       {open && (
         <div className="lg:hidden fixed top-[56px] left-0 right-0 bg-white border-b border-ui-border-base shadow-md z-50">
           <div className="px-6 py-4 flex flex-col gap-3">
-            {links.map((link, i) => (
-              <div key={i}>
-                <a
-                  href={link.url}
-                  target={link.open_new_tab ? "_blank" : undefined}
-                  rel={link.open_new_tab ? "noopener noreferrer" : undefined}
-                  onClick={() => setOpen(false)}
-                  className="block text-sm font-bold uppercase tracking-wider text-black py-1 hover:opacity-70"
-                >
-                  {link.label}
-                </a>
-                {link.children?.map((child, j) => (
-                  <a
-                    key={j}
-                    href={child.url}
-                    target={child.open_new_tab ? "_blank" : undefined}
-                    rel={child.open_new_tab ? "noopener noreferrer" : undefined}
-                    onClick={() => setOpen(false)}
-                    className="block text-sm text-gray-600 py-1 pl-4 hover:opacity-70"
-                  >
-                    {child.label}
-                  </a>
-                ))}
-              </div>
-            ))}
+            {links.map((link, i) => {
+              const isExternal = link.url.startsWith("http://") || link.url.startsWith("https://")
+              return (
+                <div key={i}>
+                  {isExternal || link.open_new_tab ? (
+                    <a
+                      href={link.url}
+                      target={link.open_new_tab ? "_blank" : undefined}
+                      rel={link.open_new_tab ? "noopener noreferrer" : undefined}
+                      onClick={() => setOpen(false)}
+                      className="block text-sm font-bold uppercase tracking-wider text-black py-1 hover:opacity-70"
+                    >
+                      {link.label}
+                    </a>
+                  ) : (
+                    <LocalizedClientLink
+                      href={link.url}
+                      onClick={() => setOpen(false)}
+                      className="block text-sm font-bold uppercase tracking-wider text-black py-1 hover:opacity-70"
+                    >
+                      {link.label}
+                    </LocalizedClientLink>
+                  )}
+                  {link.children?.map((child, j) => {
+                    const childExternal = child.url.startsWith("http://") || child.url.startsWith("https://")
+                    return childExternal || child.open_new_tab ? (
+                      <a
+                        key={j}
+                        href={child.url}
+                        target={child.open_new_tab ? "_blank" : undefined}
+                        rel={child.open_new_tab ? "noopener noreferrer" : undefined}
+                        onClick={() => setOpen(false)}
+                        className="block text-sm text-gray-600 py-1 pl-4 hover:opacity-70"
+                      >
+                        {child.label}
+                      </a>
+                    ) : (
+                      <LocalizedClientLink
+                        key={j}
+                        href={child.url}
+                        onClick={() => setOpen(false)}
+                        className="block text-sm text-gray-600 py-1 pl-4 hover:opacity-70"
+                      >
+                        {child.label}
+                      </LocalizedClientLink>
+                    )
+                  })}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
