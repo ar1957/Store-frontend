@@ -4,9 +4,9 @@ const BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
 
 export async function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers)
-  // Behind AWS ALB, x-forwarded-host contains the original domain (shop.spaderx.com)
-  // while host may be the internal EB hostname
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "localhost:8000"
+  // The AWS ALB preserves the original Host header (shop.spaderx.com)
+  // x-forwarded-host is not set by ALB by default
+  const host = request.headers.get("host") || request.headers.get("x-forwarded-host") || "localhost:8000"
   let tenantApiKey = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
 
   // Always forward the original host so server components can read it reliably
@@ -14,6 +14,7 @@ export async function middleware(request: NextRequest) {
   requestHeaders.set("x-tenant-domain", host.split(":")[0])
 
   console.log("[Middleware]", request.method, request.nextUrl.pathname, "host:", host)
+  console.log("[Middleware] all headers:", JSON.stringify(Object.fromEntries(request.headers.entries())))
 
   try {
     const res = await fetch(`${BACKEND_URL}/store/clinics/tenant-config`, {
