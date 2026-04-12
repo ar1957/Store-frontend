@@ -4,12 +4,17 @@ const BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
 
 export async function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers)
-  // Behind AWS ALB, x-forwarded-host contains the original domain (shop.spaderx.com)
-  // while host may be the internal EB hostname
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "localhost:8000"
+
+  // Behind AWS EB + nginx, the original domain (shop.spaderx.com) is forwarded
+  // as X-Forwarded-Host by our nginx config (.platform/nginx/conf.d/elasticbeanstalk/host-header.conf)
+  // Locally, host header works directly.
+  const host =
+    request.headers.get("x-forwarded-host") ||
+    request.headers.get("host") ||
+    "localhost:8000"
+
   let tenantApiKey = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
 
-  // Always forward the original host so server components can read it reliably
   requestHeaders.set("x-forwarded-host", host)
   requestHeaders.set("x-tenant-domain", host.split(":")[0])
 
@@ -17,10 +22,9 @@ export async function middleware(request: NextRequest) {
 
   try {
     const res = await fetch(`${BACKEND_URL}/store/clinics/tenant-config`, {
-      headers: { 
-        "host": host,
+      headers: {
         "x-forwarded-host": host,
-        "x-publishable-api-key": process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || "" 
+        "x-publishable-api-key": process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || "",
       },
       cache: "no-store",
     })
@@ -44,7 +48,7 @@ export async function middleware(request: NextRequest) {
     response.cookies.set("x-tenant-api-key", tenantApiKey, {
       path: "/",
       sameSite: "lax",
-      httpOnly: false, 
+      httpOnly: false,
     })
   }
 
