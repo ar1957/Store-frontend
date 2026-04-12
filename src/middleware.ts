@@ -4,7 +4,9 @@ const BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
 
 export async function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers)
-  const host = request.headers.get("host") || "localhost:8000"
+  // Behind AWS ALB, x-forwarded-host contains the original domain (shop.spaderx.com)
+  // while host may be the internal EB hostname
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "localhost:8000"
   let tenantApiKey = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
 
   // Always forward the original host so server components can read it reliably
