@@ -100,7 +100,7 @@ export default async function Footer({
 
           {/* Left: Brand + contact */}
           <div className="flex flex-col gap-y-2 w-[190px] shrink-0">
-            <LocalizedClientLink href="/" className="flex items-center mb-2">
+            <LocalizedClientLink href="/store" className="flex items-center mb-2">
               {logoUrl ? (
                 <img src={logoUrl} alt={clinicName || "Logo"} className="h-16 w-auto object-contain max-w-[170px]" />
               ) : (

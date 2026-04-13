@@ -24,7 +24,7 @@ export default function Nav({ logoUrl, getStartedUrl, navLinks, clinicName }: Na
 
         {/* Logo */}
         <div className="flex items-center">
-          <LocalizedClientLink href="/" className="flex items-center">
+          <LocalizedClientLink href="/store" className="flex items-center">
             {logoUrl ? (
               <img
                 src={logoUrl}
