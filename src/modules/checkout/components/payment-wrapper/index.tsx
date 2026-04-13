@@ -10,9 +10,10 @@ import { isStripeLike, isPaypal } from "@lib/constants"
 type PaymentWrapperProps = {
   cart: HttpTypes.StoreCart
   children: React.ReactNode
+  noPaymentNeeded?: boolean
 }
 
-const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children }) => {
+const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPaymentNeeded }) => {
   const [stripePromise, setStripePromise] = useState<Promise<any> | null>(null)
   const [stripeKey, setStripeKey] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(true)
@@ -57,7 +58,8 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children }) => {
   }
 
   // Per official Medusa PayPal docs: only wrap with PayPalWrapper when a PayPal session exists
-  if (isPaypal(paymentSession?.provider_id) && paymentSession) {
+  // Skip if no payment needed (zero total / promo covers full amount)
+  if (!noPaymentNeeded && isPaypal(paymentSession?.provider_id) && paymentSession) {
     return (
       <PayPalWrapper paymentSession={paymentSession}>
         {children}
