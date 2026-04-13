@@ -137,7 +137,8 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
   useEffect(() => {
     if (paymentInitialized.current) return
     if (activeSessionIsValid) { paymentInitialized.current = true; return }
-    // Auto-init both Stripe and PayPal sessions on mount
+    // Don't init payment session if total is zero — no payment needed
+    if (zeroTotal || paidByGiftcard) { paymentInitialized.current = true; return }
     if (!selectedPaymentMethod || (!isStripeLike(selectedPaymentMethod) && !isPaypal(selectedPaymentMethod))) return
     paymentInitialized.current = true
     setPaymentLoading(true)
@@ -249,7 +250,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
 
   return (
     <>
-    <PaymentWrapper cart={liveCart}>
+    <PaymentWrapper cart={liveCart} noPaymentNeeded={noPaymentNeeded}>
     <div className="w-full flex flex-col gap-y-8">
 
       {/* ── SECTION 1: Shipping Address ── */}
