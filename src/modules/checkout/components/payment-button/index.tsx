@@ -1,6 +1,6 @@
 "use client"
 
-import { isManual, isStripeLike } from "@lib/constants"
+import { isManual, isPaypal, isStripeLike } from "@lib/constants"
 import { placeOrder } from "@lib/data/cart"
 import { HttpTypes } from "@medusajs/types"
 import { Button } from "@medusajs/ui"
@@ -8,6 +8,7 @@ import { useElements, useStripe } from "@stripe/react-stripe-js"
 import React, { useContext, useState } from "react"
 import ErrorMessage from "../error-message"
 import { StripeContext } from "../payment-wrapper/stripe-wrapper"
+import PayPalPaymentButton from "./paypal-payment-button"
 
 type PaymentButtonProps = {
   cart: HttpTypes.StoreCart
@@ -15,6 +16,7 @@ type PaymentButtonProps = {
   disabled?: boolean
   noPaymentNeeded?: boolean
   onBeforeSubmit?: () => Promise<void>
+  selectedPaymentMethod?: string
 }
 
 // ── Processing overlay shown while order is being placed ──────────────────
@@ -74,10 +76,10 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
   disabled = false,
   noPaymentNeeded = false,
   onBeforeSubmit,
+  selectedPaymentMethod,
 }) => {
   const notReady = !cart || disabled
 
-  // Zero-total order (promo/gift card covers everything) — just place order directly
   if (noPaymentNeeded) {
     return (
       <ZeroTotalPaymentButton
@@ -92,7 +94,11 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
     (s) => s.status === "pending"
   )
 
-  if (isStripeLike(paymentSession?.provider_id)) {
+  // Use selectedPaymentMethod prop first (it's already validated against available methods)
+  // Only fall back to session provider if no selectedPaymentMethod given
+  const activeProvider = selectedPaymentMethod || paymentSession?.provider_id || ""
+
+  if (isStripeLike(activeProvider)) {
     if (!paymentSession?.data?.client_secret) {
       return <Button disabled size="large" className="w-full">Place order</Button>
     }
@@ -106,7 +112,22 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
     )
   }
 
-  if (isManual(paymentSession?.provider_id)) {
+  if (isPaypal(activeProvider)) {
+    // Only render PayPalPaymentButton when a PayPal session exists
+    // (PayPalButtons requires PayPalScriptProvider which is only mounted when session exists)
+    if (!paymentSession || !isPaypal(paymentSession.provider_id)) {
+      return <Button disabled size="large" className="w-full">Setting up PayPal…</Button>
+    }
+    return (
+      <PayPalPaymentButton
+        notReady={notReady}
+        cart={cart}
+        data-testid={dataTestId}
+        onBeforeSubmit={onBeforeSubmit}
+      />
+    )
+  }
+  if (isManual(activeProvider)) {
     return (
       <ManualTestPaymentButton notReady={notReady} data-testid={dataTestId} />
     )
@@ -292,6 +313,10 @@ const ZeroTotalPaymentButton = ({
     </>
   )
 }
+
+// PayPal payment button — must be rendered inside PaypalWrapper (PayPalScriptProvider)
+// Implemented in separate file to avoid hook-outside-provider errors
+// const PayPalPaymentButton = ... (see paypal-payment-button.tsx)
 
 const ManualTestPaymentButton = ({
   notReady,

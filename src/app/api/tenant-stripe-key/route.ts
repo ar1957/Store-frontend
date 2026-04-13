@@ -21,13 +21,18 @@ export async function GET(request: NextRequest) {
     })
 
     if (!res.ok) {
-      return NextResponse.json({ stripeKey: null })
+      return NextResponse.json({ stripeKey: null, paypalClientId: null, paymentProvider: "stripe" })
     }
 
     const data = await res.json()
-    const stripeKey = data?.tenant?.stripe_publishable_key || null
-    return NextResponse.json({ stripeKey })
+    const tenant = data?.tenant
+    return NextResponse.json({
+      stripeKey: tenant?.stripe_publishable_key || null,
+      paypalClientId: tenant?.paypal_client_id || null,
+      paypalMode: tenant?.paypal_mode || "sandbox",
+      paymentProvider: tenant?.payment_provider || "stripe",
+    })
   } catch {
-    return NextResponse.json({ stripeKey: null })
+    return NextResponse.json({ stripeKey: null, paypalClientId: null, paymentProvider: "stripe" })
   }
 }

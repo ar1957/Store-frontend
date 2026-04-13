@@ -5,7 +5,7 @@
 "use client"
 
 import { Radio, RadioGroup } from "@headlessui/react"
-import { isStripeLike, paymentInfoMap } from "@lib/constants"
+import { isStripeLike, isPaypal, paymentInfoMap } from "@lib/constants"
 import { initiatePaymentSession, setShippingMethod, saveShippingAddress, retrieveCart } from "@lib/data/cart"
 import { calculatePriceForShippingOption } from "@lib/data/fulfillment"
 import { convertToLocale } from "@lib/util/money"
@@ -119,8 +119,15 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
   const activeSession = liveCart.payment_collection?.payment_sessions?.find(
     (s: any) => s.status === "pending"
   )
+
+  // Only use the active session's provider if it's in the filtered available methods
+  const activeSessionIsValid = activeSession &&
+    availablePaymentMethods.some((m: any) => m.id === activeSession.provider_id)
+
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(
-    activeSession?.provider_id ?? availablePaymentMethods[0]?.id ?? ""
+    activeSessionIsValid
+      ? activeSession!.provider_id
+      : availablePaymentMethods[0]?.id ?? ""
   )
   const [cardComplete, setCardComplete] = useState(false)
   const [cardBrand, setCardBrand] = useState<string | null>(null)
@@ -129,8 +136,9 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
   const paymentInitialized = useRef(false)
   useEffect(() => {
     if (paymentInitialized.current) return
-    if (activeSession) { paymentInitialized.current = true; return }
-    if (!selectedPaymentMethod || !isStripeLike(selectedPaymentMethod)) return
+    if (activeSessionIsValid) { paymentInitialized.current = true; return }
+    // Auto-init both Stripe and PayPal sessions on mount
+    if (!selectedPaymentMethod || (!isStripeLike(selectedPaymentMethod) && !isPaypal(selectedPaymentMethod))) return
     paymentInitialized.current = true
     setPaymentLoading(true)
     initiatePaymentSession(liveCart, { provider_id: selectedPaymentMethod })
@@ -146,6 +154,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
   const handlePaymentMethod = async (method: string) => {
     setPaymentError(null)
     setSelectedPaymentMethod(method)
+    // Only initiate session for Stripe — PayPal creates its session on button click
     if (isStripeLike(method)) {
       setPaymentLoading(true)
       await initiatePaymentSession(liveCart, { provider_id: method })
@@ -232,7 +241,8 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
   const canPlaceOrder =
     addressComplete &&
     (liveCart.shipping_methods?.length ?? 0) > 0 &&
-    (noPaymentNeeded || (activeSession && (isStripeLike(selectedPaymentMethod) ? cardComplete : true))) &&
+    (noPaymentNeeded || activeSession || isPaypal(selectedPaymentMethod)) &&
+    (isStripeLike(selectedPaymentMethod) ? cardComplete : true) &&
     consentTerms &&
     consentPrivacy &&
     eligibilityVerified
@@ -400,7 +410,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
             <ul className="list-disc list-inside space-y-1">
               {!addressComplete && <li>Shipping address</li>}
               {(liveCart.shipping_methods?.length ?? 0) === 0 && <li>Delivery method</li>}
-              {!paidByGiftcard && !activeSession && !zeroTotal && <li>Payment details</li>}
+              {!paidByGiftcard && !activeSession && !zeroTotal && !isPaypal(selectedPaymentMethod) && <li>Payment details</li>}
               {isStripeLike(selectedPaymentMethod) && !cardComplete && activeSession && !zeroTotal && <li>Card details</li>}
               {!consentTerms && <li>Accept terms and conditions</li>}
               {!consentPrivacy && <li>Consent to privacy policy and telehealth terms</li>}
@@ -420,10 +430,11 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
         )}
 
         <div className={!canPlaceOrder ? "opacity-50 pointer-events-none" : ""}>
-          {(activeSession || noPaymentNeeded) ? (
+          {(activeSession || noPaymentNeeded || isPaypal(selectedPaymentMethod)) ? (
             <PaymentButton
               cart={liveCart}
               noPaymentNeeded={noPaymentNeeded}
+              selectedPaymentMethod={selectedPaymentMethod}
               data-testid="submit-order-button"
               onBeforeSubmit={async () => {
                 try {

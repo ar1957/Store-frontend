@@ -3,8 +3,9 @@
 import { loadStripe } from "@stripe/stripe-js"
 import React, { useEffect, useState } from "react"
 import StripeWrapper from "./stripe-wrapper"
+import PayPalWrapper from "./paypal-wrapper"
 import { HttpTypes } from "@medusajs/types"
-import { isStripeLike } from "@lib/constants"
+import { isStripeLike, isPaypal } from "@lib/constants"
 
 type PaymentWrapperProps = {
   cart: HttpTypes.StoreCart
@@ -17,47 +18,33 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children }) => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const loadClinicStripeKey = async () => {
+    const loadConfig = async () => {
       try {
-        // Call our own Next.js API route — it can read the host header correctly
-        // (browsers block setting 'host' directly in client-side fetch)
         const res = await fetch("/api/tenant-stripe-key")
         if (res.ok) {
           const data = await res.json()
-          if (data?.stripeKey) {
+          if (data.stripeKey && data.paymentProvider !== "paypal") {
             setStripeKey(data.stripeKey)
             setStripePromise(loadStripe(data.stripeKey))
-            return
           }
+          return
         }
       } catch (err) {
-        console.error("Failed to load dynamic stripe key", err)
+        console.error("Failed to load payment config", err)
       }
-
-      // Fallback to environment variable
-      const fallbackKey = process.env.NEXT_PUBLIC_STRIPE_KEY ||
-        process.env.NEXT_PUBLIC_MEDUSA_PAYMENTS_PUBLISHABLE_KEY
-
+      const fallbackKey = process.env.NEXT_PUBLIC_STRIPE_KEY
       if (fallbackKey) {
         setStripeKey(fallbackKey)
         setStripePromise(loadStripe(fallbackKey))
       }
     }
-
-    loadClinicStripeKey().finally(() => setLoading(false))
+    loadConfig().finally(() => setLoading(false))
   }, [])
 
   const paymentSession = cart.payment_collection?.payment_sessions?.find(
     (s) => s.status === "pending"
   )
 
-  const isStripeSession =
-    isStripeLike(paymentSession?.provider_id) &&
-    !!paymentSession?.data?.client_secret
-
-  // Show spinner while fetching the Stripe key — regardless of whether
-  // the payment session exists yet. This prevents children rendering
-  // before stripePromise is ready, which causes the disabled button race.
   if (loading) {
     return (
       <div className="w-full h-40 flex items-center justify-center border rounded-lg bg-gray-50 border-dashed">
@@ -69,13 +56,22 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children }) => {
     )
   }
 
+  // Per official Medusa PayPal docs: only wrap with PayPalWrapper when a PayPal session exists
+  if (isPaypal(paymentSession?.provider_id) && paymentSession) {
+    return (
+      <PayPalWrapper paymentSession={paymentSession}>
+        {children}
+      </PayPalWrapper>
+    )
+  }
+
+  const isStripeSession =
+    isStripeLike(paymentSession?.provider_id) &&
+    !!paymentSession?.data?.client_secret
+
   if (isStripeSession && stripePromise) {
     return (
-      <StripeWrapper
-        paymentSession={paymentSession}
-        stripeKey={stripeKey}
-        stripePromise={stripePromise} // Fixed prop name to match stripe-wrapper.tsx
-      >
+      <StripeWrapper paymentSession={paymentSession} stripeKey={stripeKey} stripePromise={stripePromise}>
         {children}
       </StripeWrapper>
     )
