@@ -61,7 +61,17 @@ export default function CategoryTemplate({
         </div>
         {category.description && (
           <div className="mb-8 text-base-regular">
-            <p>{category.description}</p>
+            {category.description.includes("<") ? (
+              <div
+                style={{
+                  lineHeight: 1.7,
+                }}
+                className="category-description"
+                dangerouslySetInnerHTML={{ __html: category.description }}
+              />
+            ) : (
+              <p style={{ whiteSpace: "pre-line" }}>{category.description}</p>
+            )}
           </div>
         )}
         {category.category_children && (
