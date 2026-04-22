@@ -395,7 +395,7 @@ export default function EligibilityModal({
           {/* Medications — compact no-border list */}
           {!blocked && step === medicationsStep && (
             <div style={s.stepWrap}>
-              <h2 style={s.question}>Are you currently taking any of the following GLP-1 medications for weight loss?</h2>
+              <h2 style={s.question}>Please select any medications you are currently taking for weight loss, in addition list all the medications you are taking under other:</h2>
               <div style={{ display: "flex", flexDirection: "column", marginTop: 12 }}>
                 {GLP1_MEDS.map(med => {
                   const checked = form.currentMedications.includes(med)
