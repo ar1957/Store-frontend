@@ -99,9 +99,7 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
   const activeProvider = selectedPaymentMethod || paymentSession?.provider_id || ""
 
   if (isStripeLike(activeProvider)) {
-    if (!paymentSession?.data?.client_secret) {
-      return <Button disabled size="large" className="w-full">Place order</Button>
-    }
+    // StripeWrapper won't render without a valid clientSecret, so no guard needed here
     return (
       <StripePaymentButton
         notReady={notReady}
@@ -147,14 +145,14 @@ const StripePaymentButton = ({
   "data-testid"?: string
   onBeforeSubmit?: () => Promise<void>
 }) => {
-  const stripeReady = useContext(StripeContext)
+  const stripeClientSecret = useContext(StripeContext)
 
-  // Don't render until inside Elements provider — prevents useStripe() crash
-  if (!stripeReady) {
+  // Don't render until inside Elements provider with a valid clientSecret
+  if (!stripeClientSecret) {
     return <Button disabled size="large" className="w-full">Place order</Button>
   }
 
-  return <StripePaymentButtonInner cart={cart} notReady={notReady} data-testid={dataTestId} onBeforeSubmit={onBeforeSubmit} />
+  return <StripePaymentButtonInner cart={cart} notReady={notReady} data-testid={dataTestId} onBeforeSubmit={onBeforeSubmit} clientSecret={stripeClientSecret} />
 }
 
 const StripePaymentButtonInner = ({
@@ -162,29 +160,19 @@ const StripePaymentButtonInner = ({
   notReady,
   "data-testid": dataTestId,
   onBeforeSubmit,
+  clientSecret,
 }: {
   cart: HttpTypes.StoreCart
   notReady: boolean
   "data-testid"?: string
   onBeforeSubmit?: () => Promise<void>
+  clientSecret: string
 }) => {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const stripe = useStripe()
   const elements = useElements()
-
-  const session = cart.payment_collection?.payment_sessions?.find(
-    (s) => s.status === "pending"
-  )
-
-  // clientSecret must be a plain string for stripe.confirmPayment()
-  const rawSecret = session?.data?.client_secret
-  const clientSecret: string | undefined = typeof rawSecret === "string"
-    ? rawSecret
-    : typeof rawSecret === "object" && rawSecret !== null
-      ? (rawSecret as any).clientSecret
-      : undefined
 
   const isDisabled = !stripe || !elements || notReady
 
