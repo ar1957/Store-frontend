@@ -10,6 +10,7 @@ type StripeWrapperProps = {
   stripeKey?: string
   stripePromise: Promise<Stripe | null> | null
   children: React.ReactNode
+  clientSecret?: string
 }
 
 export const StripeContext = createContext(false)
@@ -19,9 +20,18 @@ const StripeWrapper: React.FC<StripeWrapperProps> = ({
   stripeKey,
   stripePromise,
   children,
+  clientSecret: clientSecretProp,
 }) => {
+  // Use explicitly passed clientSecret first, then fall back to session data
+  const rawSecret = clientSecretProp || paymentSession?.data?.client_secret
+  const clientSecret = typeof rawSecret === "string"
+    ? rawSecret
+    : typeof rawSecret === "object" && rawSecret !== null
+      ? (rawSecret as any).clientSecret
+      : undefined
+
   const options: StripeElementsOptions = {
-    clientSecret: paymentSession!.data?.client_secret as string | undefined,
+    clientSecret,
     appearance: {
       theme: "stripe",
       variables: {
@@ -32,9 +42,7 @@ const StripeWrapper: React.FC<StripeWrapperProps> = ({
     },
   }
 
-  // FIXED: Instead of throwing an error (which crashes the app), we return a loading state.
-  // This allows the parent component to finish fetching the Key from your database.
-  if (!stripeKey || !stripePromise || !paymentSession?.data?.client_secret) {
+  if (!stripeKey || !stripePromise || !clientSecret) {
     return (
       <div className="w-full h-40 flex items-center justify-center border rounded-lg bg-gray-50 border-dashed">
         <div className="flex flex-col items-center gap-2">

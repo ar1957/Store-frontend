@@ -149,6 +149,7 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
         paymentSession={syntheticSession}
         stripeKey={stripeKey}
         stripePromise={stripePromise}
+        clientSecret={effectiveClientSecret}
       >
         {children}
       </StripeWrapper>
