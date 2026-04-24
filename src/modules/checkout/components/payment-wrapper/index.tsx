@@ -102,6 +102,15 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
     : typeof rawSecret === "object" && rawSecret !== null
       ? (rawSecret as any).clientSecret || undefined
       : undefined
+
+  // Debug — remove after fix
+  if (typeof window !== "undefined") {
+    console.log("[PaymentWrapper] clinicClientSecret:", clinicClientSecret?.slice(0, 30))
+    console.log("[PaymentWrapper] effectiveClientSecret:", effectiveClientSecret?.slice(0, 30))
+    console.log("[PaymentWrapper] stripePromise:", !!stripePromise)
+    console.log("[PaymentWrapper] loading:", loading)
+    console.log("[PaymentWrapper] noPaymentNeeded:", noPaymentNeeded)
+  }
   const isStripeSession = isStripeLike(paymentSession?.provider_id ?? (stripeKey ? "pp_stripe_stripe" : ""))
     && !!effectiveClientSecret
 
