@@ -178,6 +178,14 @@ const StripePaymentButtonInner = ({
     (s) => s.status === "pending"
   )
 
+  // clientSecret must be a plain string for stripe.confirmPayment()
+  const rawSecret = session?.data?.client_secret
+  const clientSecret: string | undefined = typeof rawSecret === "string"
+    ? rawSecret
+    : typeof rawSecret === "object" && rawSecret !== null
+      ? (rawSecret as any).clientSecret
+      : undefined
+
   const isDisabled = !stripe || !elements || notReady
 
   const onPaymentCompleted = async () => {
@@ -223,7 +231,7 @@ const StripePaymentButtonInner = ({
 
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
-      clientSecret: session?.data.client_secret as string,
+      clientSecret: clientSecret as string,
       confirmParams: {
         return_url: `${window.location.origin}${window.location.pathname}?payment_return=1`,
         payment_method_data: {
