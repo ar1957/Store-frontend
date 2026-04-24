@@ -13,7 +13,8 @@ type StripeWrapperProps = {
   clientSecret?: string
 }
 
-export const StripeContext = createContext(false)
+// Context holds the clientSecret string (or false if not ready)
+export const StripeContext = createContext<string | false>(false)
 
 const StripeWrapper: React.FC<StripeWrapperProps> = ({
   paymentSession,
@@ -54,7 +55,7 @@ const StripeWrapper: React.FC<StripeWrapperProps> = ({
   }
 
   return (
-    <StripeContext.Provider value={true}>
+    <StripeContext.Provider value={clientSecret}>
       <Elements options={options} stripe={stripePromise}>
         {children}
       </Elements>
