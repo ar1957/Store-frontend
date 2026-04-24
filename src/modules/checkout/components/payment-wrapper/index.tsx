@@ -27,7 +27,14 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
   const [clinicClientSecret, setClinicClientSecret] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const cartTotal = (cart as any)?.total ?? 0
+
   useEffect(() => {
+    // Only run when we have a positive total (shipping selected)
+    if (cartTotal <= 0) return
+    // Reset state for fresh fetch
+    setClinicClientSecret(null)
+    setLoading(true)
     const loadConfig = async () => {
       try {
         const res = await fetch("/api/tenant-stripe-key")
@@ -38,12 +45,9 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
             setStripeKey(data.stripeKey)
             setStripePromise(loadStripe(data.stripeKey))
 
-            // If cart has a total > 0, create a PaymentIntent using the clinic's own Stripe key
+            // Always create a fresh PaymentIntent using the clinic's own Stripe key
             // This bypasses Medusa's global STRIPE_API_KEY and uses the per-clinic key
-            const cartAny = cart as any
-            const total = cartAny?.total ?? 0
-
-            if (total > 0 && !noPaymentNeeded) {
+            if (cartTotal > 0 && !noPaymentNeeded) {
               try {
                 const intentRes = await fetch(`/api/create-payment-intent`, {
                   method: "POST",
@@ -51,7 +55,8 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
                     "Content-Type": "application/json",
                   },
                   body: JSON.stringify({
-                    amount: total,
+                    domain: typeof window !== "undefined" ? ((window as any).__TENANT_DOMAIN__ || window.location.hostname) : "",
+                    amount: cartTotal,
                     currency: cart.currency_code || "usd",
                     cartId: cart.id,
                   }),
@@ -86,7 +91,7 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
       }
     }
     loadConfig().finally(() => setLoading(false))
-  }, [])
+  }, [cartTotal])
 
   const paymentSession = cart.payment_collection?.payment_sessions?.find(
     (s) => s.status === "pending"

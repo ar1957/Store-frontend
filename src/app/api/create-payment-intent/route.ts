@@ -6,9 +6,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const host = request.headers.get("host") || ""
+    const xForwardedHost = request.headers.get("x-forwarded-host") || ""
 
-    // Use the actual domain from the request host, not what the client sends
-    const domain = host.split(":")[0]
+    // Use x-forwarded-host (real clinic domain) if available, otherwise host
+    // Also accept domain from body as override (sent by client with __TENANT_DOMAIN__)
+    const domain = body.domain || xForwardedHost.split(":")[0] || host.split(":")[0]
 
     const tenantKey = request.cookies.get("x-tenant-api-key")?.value
       || process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
