@@ -20,8 +20,6 @@ interface TenantPaymentConfig {
   paymentProvider: string
 }
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
-
 const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPaymentNeeded }) => {
   const [stripePromise, setStripePromise] = useState<Promise<any> | null>(null)
   const [stripeKey, setStripeKey] = useState<string | undefined>(undefined)
@@ -40,8 +38,8 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
             setStripeKey(data.stripeKey)
             setStripePromise(loadStripe(data.stripeKey))
 
-            // If cart has a total > 0 and no valid payment session yet,
-            // create a PaymentIntent using the clinic's own Stripe key
+            // If cart has a total > 0, create a PaymentIntent using the clinic's own Stripe key
+            // This bypasses Medusa's global STRIPE_API_KEY and uses the per-clinic key
             const cartAny = cart as any
             const total = cartAny?.total ?? 0
             const existingSession = cart.payment_collection?.payment_sessions?.find(
@@ -50,15 +48,12 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
 
             if (total > 0 && !noPaymentNeeded && !existingSession?.data?.client_secret) {
               try {
-                const domain = typeof window !== "undefined" ? window.location.hostname : ""
-                const intentRes = await fetch(`${BACKEND_URL}/store/clinics/create-payment-intent`, {
+                const intentRes = await fetch(`/api/create-payment-intent`, {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
-                    "x-publishable-api-key": (window as any).__TENANT_API_KEY__ || process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || "",
                   },
                   body: JSON.stringify({
-                    domain,
                     amount: total,
                     currency: cart.currency_code || "usd",
                     cartId: cart.id,
@@ -66,13 +61,12 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
                 })
                 if (intentRes.ok) {
                   const intentData = await intentRes.json()
-                  // clientSecret must be a plain string, not an object
                   const cs = intentData.clientSecret
                   if (cs && typeof cs === "string") {
                     setClinicClientSecret(cs)
-                  } else if (cs && typeof cs === "object" && cs.clientSecret) {
-                    setClinicClientSecret(cs.clientSecret)
                   }
+                } else {
+                  console.error("create-payment-intent failed:", await intentRes.text())
                 }
               } catch (e) {
                 console.error("Failed to create clinic payment intent", e)
