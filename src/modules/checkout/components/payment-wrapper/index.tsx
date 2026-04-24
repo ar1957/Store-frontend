@@ -42,11 +42,8 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
             // This bypasses Medusa's global STRIPE_API_KEY and uses the per-clinic key
             const cartAny = cart as any
             const total = cartAny?.total ?? 0
-            const existingSession = cart.payment_collection?.payment_sessions?.find(
-              (s: any) => s.status === "pending" && isStripeLike(s.provider_id)
-            )
 
-            if (total > 0 && !noPaymentNeeded && !existingSession?.data?.client_secret) {
+            if (total > 0 && !noPaymentNeeded) {
               try {
                 const intentRes = await fetch(`/api/create-payment-intent`, {
                   method: "POST",
