@@ -9,8 +9,6 @@ import ErrorMessage from "../error-message"
 import { StripeContext, StripeContextValue } from "../payment-wrapper/stripe-wrapper"
 import PayPalPaymentButton from "./paypal-payment-button"
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
-const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
 type PaymentButtonProps = {
   cart: HttpTypes.StoreCart
@@ -131,19 +129,10 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
   return <Button disabled size="large" className="w-full">Select a payment method</Button>
 }
 
-/**
- * Calls our custom /store/clinics/complete-cart endpoint instead of the
- * standard Medusa cart.complete(). This bypasses authorizePaymentSessionsStep
- * which would re-validate the PaymentIntent using the global STRIPE_API_KEY —
- * the wrong Stripe account for per-clinic payments.
- */
 async function completeCartViaClinicEndpoint(cartId: string): Promise<{ type: string; order?: any }> {
-  const res = await fetch(`${BACKEND_URL}/store/clinics/complete-cart`, {
+  const res = await fetch("/api/complete-cart", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-publishable-api-key": PUB_KEY,
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ cartId }),
   })
   if (!res.ok) {
@@ -211,7 +200,6 @@ const StripePaymentButtonInner = ({
       if (result?.type === "order" && result.order) {
         const countryCode = result.order.shipping_address?.country_code?.toLowerCase() || "us"
         // Remove the cart cookie so next session starts fresh
-        document.cookie = "_medusa_cart_id=; max-age=0; path=/"
         window.location.href = `/${countryCode}/order/${result.order.id}/confirmed`
         return
       }
@@ -342,7 +330,6 @@ const ZeroTotalPaymentButton = ({
       const result = await completeCartViaClinicEndpoint(cart.id)
       if (result?.type === "order" && result.order) {
         const countryCode = result.order.shipping_address?.country_code?.toLowerCase() || "us"
-        document.cookie = "_medusa_cart_id=; max-age=0; path=/"
         window.location.href = `/${countryCode}/order/${result.order.id}/confirmed`
         return
       }
@@ -396,7 +383,6 @@ const ManualTestPaymentButton = ({
       const result = await completeCartViaClinicEndpoint(cart.id)
       if (result?.type === "order" && result.order) {
         const countryCode = result.order.shipping_address?.country_code?.toLowerCase() || "us"
-        document.cookie = "_medusa_cart_id=; max-age=0; path=/"
         window.location.href = `/${countryCode}/order/${result.order.id}/confirmed`
         return
       }
