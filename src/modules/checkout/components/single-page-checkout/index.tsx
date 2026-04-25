@@ -142,7 +142,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
     if (!selectedPaymentMethod || (!isStripeLike(selectedPaymentMethod) && !isPaypal(selectedPaymentMethod))) return
     paymentInitialized.current = true
     setPaymentLoading(true)
-    initiatePaymentSession(liveCart, { provider_id: selectedPaymentMethod })
+    initiatePaymentSession(liveCart, { provider_id: "pp_system_default" })
       .then(() => retrieveCart(
         undefined,
         "*payment_collection, *payment_collection.payment_sessions, *shipping_methods"
@@ -158,7 +158,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
     // Only initiate session for Stripe — PayPal creates its session on button click
     if (isStripeLike(method)) {
       setPaymentLoading(true)
-      await initiatePaymentSession(liveCart, { provider_id: method })
+      await initiatePaymentSession(liveCart, { provider_id: "pp_system_default" })
         .catch(err => { setPaymentError(err.message); return null })
       const freshCart = await retrieveCart(
         undefined,
