@@ -1,5 +1,3 @@
-"use client"
-
 import { Heading } from "@medusajs/ui"
 
 import ItemsPreviewTemplate from "@modules/cart/templates/preview"

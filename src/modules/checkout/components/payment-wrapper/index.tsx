@@ -99,9 +99,11 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
 
   const isPaypalSession = !noPaymentNeeded && isPaypal(paymentSession?.provider_id) && !!paymentSession
 
-  // Use clinic's own client_secret if available, otherwise fall back to Medusa session
-  // Ensure it's always a plain string
-  const rawSecret = clinicClientSecret || paymentSession?.data?.client_secret
+  // Use clinic's own client_secret if available
+  // Only fall back to Medusa session secret if it's test-mode (matches the publishable key mode)
+  // For live keys, never use the test-mode fallback
+  const rawSecret = clinicClientSecret || 
+    (stripeKey?.startsWith("pk_test_") ? paymentSession?.data?.client_secret : null)
   const effectiveClientSecret = typeof rawSecret === "string"
     ? rawSecret
     : typeof rawSecret === "object" && rawSecret !== null

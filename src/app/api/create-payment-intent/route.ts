@@ -12,7 +12,13 @@ export async function POST(request: NextRequest) {
     // Fall back to x-forwarded-host (set by nginx on EB), then host
     const domain = body.domain || xForwardedHost.split(":")[0] || host.split(":")[0]
 
-    console.log("[create-payment-intent] body.domain:", body.domain, "x-forwarded-host:", xForwardedHost, "host:", host, "resolved domain:", domain)
+    console.log("[create-payment-intent] Attempting to create PaymentIntent", {
+      domain,
+      amount: body.amount,
+      "body.domain": body.domain,
+      "x-forwarded-host": xForwardedHost,
+      host,
+    })
 
     if (!domain) {
       return NextResponse.json({ error: "Could not determine clinic domain" }, { status: 400 })
@@ -40,12 +46,19 @@ export async function POST(request: NextRequest) {
 
     if (!res.ok) {
       const text = await res.text()
-      console.error("[create-payment-intent] Backend error:", res.status, text)
+      console.error("[create-payment-intent] Backend error", {
+        status: res.status,
+        domain,
+        error: text,
+      })
       return NextResponse.json({ error: text }, { status: res.status })
     }
 
     const data = await res.json()
-    console.log("[create-payment-intent] Success:", data.paymentIntentId)
+    console.log("[create-payment-intent] Success", {
+      paymentIntentId: data.paymentIntentId,
+      domain,
+    })
     return NextResponse.json(data)
   } catch (err: any) {
     console.error("[create-payment-intent proxy] Error:", err.message)
