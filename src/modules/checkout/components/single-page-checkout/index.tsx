@@ -243,7 +243,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
     addressComplete &&
     (liveCart.shipping_methods?.length ?? 0) > 0 &&
     (noPaymentNeeded || activeSession || isPaypal(selectedPaymentMethod)) &&
-    (isStripeLike(selectedPaymentMethod) ? cardComplete : true) &&
+    (noPaymentNeeded || !isStripeLike(selectedPaymentMethod) || cardComplete) &&
     consentTerms &&
     consentPrivacy &&
     eligibilityVerified
@@ -412,7 +412,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
               {!addressComplete && <li>Shipping address</li>}
               {(liveCart.shipping_methods?.length ?? 0) === 0 && <li>Delivery method</li>}
               {!paidByGiftcard && !activeSession && !zeroTotal && !isPaypal(selectedPaymentMethod) && <li>Payment details</li>}
-              {isStripeLike(selectedPaymentMethod) && !cardComplete && activeSession && !zeroTotal && <li>Card details</li>}
+              {isStripeLike(selectedPaymentMethod) && !cardComplete && activeSession && !zeroTotal && !noPaymentNeeded && <li>Card details</li>}
               {!consentTerms && <li>Accept terms and conditions</li>}
               {!consentPrivacy && <li>Consent to privacy policy and telehealth terms</li>}
               {!eligibilityVerified && (

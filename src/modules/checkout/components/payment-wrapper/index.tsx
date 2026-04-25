@@ -1,11 +1,11 @@
 "use client"
 
 import { loadStripe } from "@stripe/stripe-js"
-import React, { useEffect, useRef, useState } from "react"
+import React, { useEffect, useState } from "react"
 import StripeWrapper from "./stripe-wrapper"
 import PayPalWrapper from "./paypal-wrapper"
 import { HttpTypes } from "@medusajs/types"
-import { isStripeLike, isPaypal } from "@lib/constants"
+import { isPaypal } from "@lib/constants"
 
 type PaymentWrapperProps = {
   cart: HttpTypes.StoreCart
@@ -13,28 +13,73 @@ type PaymentWrapperProps = {
   noPaymentNeeded?: boolean
 }
 
+interface TenantPaymentConfig {
+  stripeKey: string | null
+  paypalClientId: string | null
+  paypalMode: string
+  paymentProvider: string
+}
+
 const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPaymentNeeded }) => {
   const [stripePromise, setStripePromise] = useState<Promise<any> | null>(null)
   const [stripeKey, setStripeKey] = useState<string | undefined>(undefined)
+  const [paypalClientId, setPaypalClientId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [clinicClientSecret, setClinicClientSecret] = useState<string | null>(null)
   const [clinicPaymentIntentId, setClinicPaymentIntentId] = useState<string | null>(null)
-  const intentCartTotal = useRef<number | null>(null)
 
   const paymentSession = cart.payment_collection?.payment_sessions?.find(
     (s) => s.status === "pending"
   )
-  const isStripeActive = isStripeLike(paymentSession?.provider_id)
+
+  const cartTotal = (cart as any)?.total ?? 0
 
   useEffect(() => {
+    if (cartTotal <= 0) return
+    // Reset secrets on cart total change so a fresh intent is created
+    setClinicClientSecret(null)
+    setClinicPaymentIntentId(null)
+    setLoading(true)
+
     const loadConfig = async () => {
       try {
         const res = await fetch("/api/tenant-stripe-key")
         if (res.ok) {
-          const data = await res.json()
+          const data: TenantPaymentConfig = await res.json()
+
           if (data.stripeKey && data.paymentProvider !== "paypal") {
             setStripeKey(data.stripeKey)
             setStripePromise(loadStripe(data.stripeKey))
+
+            if (!noPaymentNeeded) {
+              try {
+                const intentRes = await fetch("/api/create-payment-intent", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    domain: typeof window !== "undefined"
+                      ? ((window as any).__TENANT_DOMAIN__ || window.location.hostname)
+                      : "",
+                    amount: cartTotal,
+                    currency: cart.currency_code || "usd",
+                    cartId: cart.id,
+                  }),
+                })
+                if (intentRes.ok) {
+                  const intentData = await intentRes.json()
+                  if (intentData.clientSecret && typeof intentData.clientSecret === "string") {
+                    setClinicClientSecret(intentData.clientSecret)
+                    setClinicPaymentIntentId(intentData.paymentIntentId || null)
+                  }
+                }
+              } catch (e) {
+                console.error("[PaymentWrapper] Failed to create payment intent", e)
+              }
+            }
+          }
+
+          if (data.paypalClientId && data.paymentProvider !== "stripe") {
+            setPaypalClientId(data.paypalClientId)
           }
           return
         }
@@ -48,47 +93,9 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
       }
     }
     loadConfig().finally(() => setLoading(false))
-  }, [])
+  }, [cartTotal])
 
-  // Reset intent when Stripe is no longer the active method
-  useEffect(() => {
-    if (!isStripeActive) {
-      setClinicClientSecret(null)
-      setClinicPaymentIntentId(null)
-      intentCartTotal.current = null
-    }
-  }, [isStripeActive])
-
-  // Create per-clinic payment intent when Stripe is active
-  useEffect(() => {
-    if (!isStripeActive || !cart.id || !cart.total || cart.total <= 0) return
-    // Skip if we already have an intent for this exact cart total
-    if (intentCartTotal.current === cart.total && clinicClientSecret) return
-    intentCartTotal.current = cart.total
-
-    const createIntent = async () => {
-      try {
-        const res = await fetch("/api/create-payment-intent", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            amount: cart.total,
-            currency: cart.region?.currency_code || "usd",
-            cartId: cart.id,
-          }),
-        })
-        if (res.ok) {
-          const data = await res.json()
-          setClinicClientSecret(data.clientSecret || null)
-          setClinicPaymentIntentId(data.paymentIntentId || null)
-        }
-      } catch (err) {
-        console.error("[PaymentWrapper] Failed to create payment intent", err)
-      }
-    }
-
-    createIntent()
-  }, [isStripeActive, cart.id, cart.total])
+  const isPaypalSession = !noPaymentNeeded && isPaypal(paymentSession?.provider_id) && !!paymentSession
 
   if (loading) {
     return (
@@ -101,21 +108,21 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
     )
   }
 
-  if (!noPaymentNeeded && isPaypal(paymentSession?.provider_id) && paymentSession) {
+  if (isPaypalSession && paypalClientId) {
     return (
-      <PayPalWrapper paymentSession={paymentSession}>
+      <PayPalWrapper paymentSession={paymentSession!}>
         {children}
       </PayPalWrapper>
     )
   }
 
-  if (isStripeActive && stripePromise) {
+  if (!noPaymentNeeded && stripePromise && clinicClientSecret) {
     return (
       <StripeWrapper
-        paymentSession={paymentSession!}
+        paymentSession={paymentSession}
         stripeKey={stripeKey}
         stripePromise={stripePromise}
-        clientSecret={clinicClientSecret || ""}
+        clientSecret={clinicClientSecret}
         paymentIntentId={clinicPaymentIntentId}
       >
         {children}
