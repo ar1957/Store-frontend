@@ -5,23 +5,28 @@ import { Elements } from "@stripe/react-stripe-js"
 import { HttpTypes } from "@medusajs/types"
 import { createContext } from "react"
 
+export type StripeContextValue = { clientSecret: string; paymentIntentId: string | null } | false
+
+export const StripeContext = createContext<StripeContextValue>(false)
+
 type StripeWrapperProps = {
   paymentSession: HttpTypes.StorePaymentSession
   stripeKey?: string
   stripePromise: Promise<Stripe | null> | null
+  clientSecret: string
+  paymentIntentId: string | null
   children: React.ReactNode
 }
 
-export const StripeContext = createContext(false)
-
 const StripeWrapper: React.FC<StripeWrapperProps> = ({
-  paymentSession,
   stripeKey,
   stripePromise,
+  clientSecret,
+  paymentIntentId,
   children,
 }) => {
   const options: StripeElementsOptions = {
-    clientSecret: paymentSession!.data?.client_secret as string | undefined,
+    clientSecret: clientSecret || undefined,
     appearance: {
       theme: "stripe",
       variables: {
@@ -32,9 +37,7 @@ const StripeWrapper: React.FC<StripeWrapperProps> = ({
     },
   }
 
-  // FIXED: Instead of throwing an error (which crashes the app), we return a loading state.
-  // This allows the parent component to finish fetching the Key from your database.
-  if (!stripeKey || !stripePromise || !paymentSession?.data?.client_secret) {
+  if (!stripeKey || !stripePromise || !clientSecret) {
     return (
       <div className="w-full h-40 flex items-center justify-center border rounded-lg bg-gray-50 border-dashed">
         <div className="flex flex-col items-center gap-2">
@@ -46,7 +49,7 @@ const StripeWrapper: React.FC<StripeWrapperProps> = ({
   }
 
   return (
-    <StripeContext.Provider value={true}>
+    <StripeContext.Provider value={{ clientSecret, paymentIntentId }}>
       <Elements options={options} stripe={stripePromise}>
         {children}
       </Elements>
