@@ -67,13 +67,17 @@ export default async function Footer({
   footerLinks, bottomLinks, logoUrl, clinicName,
   contactPhone, contactEmail, contactAddress, socialLinks, certificationImageUrl,
 }: FooterProps) {
-  const { collections } = await listCollections({ fields: "*products" })
-  const productCategories = await listCategories()
+  // Wrap in try-catch — a failed data fetch must not crash the entire page
+  const collections = await listCollections({ fields: "*products" })
+    .then(r => r.collections)
+    .catch(() => [])
+  const productCategories = await listCategories().catch(() => [])
+
   const links = footerLinks && footerLinks.length > 0 ? footerLinks : []
   const bLinks = bottomLinks && bottomLinks.length > 0 ? bottomLinks : []
   const socials = socialLinks && socialLinks.length > 0 ? socialLinks : []
 
-  const meaningfulCategories = productCategories.filter(c => !c.parent_category)
+  const meaningfulCategories = productCategories.filter((c: any) => !c.parent_category)
   const meaningfulCollections = collections || []
 
   return (
@@ -148,7 +152,7 @@ export default async function Footer({
               <div className="flex flex-col gap-y-2">
                 <span className="text-xs font-bold text-gray-800 uppercase tracking-widest mb-1">Categories</span>
                 <ul className="flex flex-col gap-y-1">
-                  {meaningfulCategories.slice(0, 6).map((c) => (
+                  {meaningfulCategories.slice(0, 6).map((c: any) => (
                     <li key={c.id}>
                       <LocalizedClientLink className="text-gray-600 hover:text-black transition-colors" href={`/categories/${c.handle}`}>
                         {c.name}
@@ -163,7 +167,7 @@ export default async function Footer({
               <div className="flex flex-col gap-y-2">
                 <span className="text-xs font-bold text-gray-800 uppercase tracking-widest mb-1">Collections</span>
                 <ul className="flex flex-col gap-y-1">
-                  {meaningfulCollections.slice(0, 6).map((c) => (
+                  {meaningfulCollections.slice(0, 6).map((c: any) => (
                     <li key={c.id}>
                       <LocalizedClientLink className="text-gray-600 hover:text-black transition-colors" href={`/collections/${c.handle}`}>
                         {c.title}
