@@ -10,7 +10,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const domain = host.split(":")[0]
+    const xForwardedHost = request.headers.get("x-forwarded-host") || ""
+    const domain = body.domain || xForwardedHost.split(":")[0] || host.split(":")[0]
 
     const res = await fetch(`${BACKEND_URL}/store/clinics/create-payment-intent`, {
       method: "POST",
