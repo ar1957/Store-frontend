@@ -5,33 +5,28 @@ import { Elements } from "@stripe/react-stripe-js"
 import { HttpTypes } from "@medusajs/types"
 import { createContext } from "react"
 
+export type StripeContextValue = { clientSecret: string; paymentIntentId: string | null } | false
+
+export const StripeContext = createContext<StripeContextValue>(false)
+
 type StripeWrapperProps = {
-  paymentSession: HttpTypes.StorePaymentSession
+  paymentSession?: HttpTypes.StorePaymentSession
   stripeKey?: string
   stripePromise: Promise<Stripe | null> | null
+  clientSecret: string
+  paymentIntentId: string | null
   children: React.ReactNode
-  clientSecret?: string
 }
 
-export const StripeContext = createContext(false)
-
 const StripeWrapper: React.FC<StripeWrapperProps> = ({
-  paymentSession,
   stripeKey,
   stripePromise,
+  clientSecret,
+  paymentIntentId,
   children,
-  clientSecret: clientSecretProp,
 }) => {
-  // Use explicitly passed clientSecret first, then fall back to session data
-  const rawSecret = clientSecretProp || paymentSession?.data?.client_secret
-  const clientSecret = typeof rawSecret === "string"
-    ? rawSecret
-    : typeof rawSecret === "object" && rawSecret !== null
-      ? (rawSecret as any).clientSecret
-      : undefined
-
   const options: StripeElementsOptions = {
-    clientSecret,
+    clientSecret: clientSecret || undefined,
     appearance: {
       theme: "stripe",
       variables: {
@@ -54,7 +49,7 @@ const StripeWrapper: React.FC<StripeWrapperProps> = ({
   }
 
   return (
-    <StripeContext.Provider value={true}>
+    <StripeContext.Provider value={{ clientSecret, paymentIntentId }}>
       <Elements options={options} stripe={stripePromise}>
         {children}
       </Elements>

@@ -7,7 +7,7 @@ import { Button } from "@medusajs/ui"
 import { useElements, useStripe } from "@stripe/react-stripe-js"
 import React, { useContext, useState } from "react"
 import ErrorMessage from "../error-message"
-import { StripeContext } from "../payment-wrapper/stripe-wrapper"
+import { StripeContext, StripeContextValue } from "../payment-wrapper/stripe-wrapper"
 import PayPalPaymentButton from "./paypal-payment-button"
 
 type PaymentButtonProps = {
@@ -99,9 +99,6 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
   const activeProvider = selectedPaymentMethod || paymentSession?.provider_id || ""
 
   if (isStripeLike(activeProvider)) {
-    if (!paymentSession?.data?.client_secret) {
-      return <Button disabled size="large" className="w-full">Place order</Button>
-    }
     return (
       <StripePaymentButton
         notReady={notReady}
@@ -147,14 +144,23 @@ const StripePaymentButton = ({
   "data-testid"?: string
   onBeforeSubmit?: () => Promise<void>
 }) => {
-  const stripeReady = useContext(StripeContext)
+  const stripeCtx = useContext(StripeContext)
 
-  // Don't render until inside Elements provider — prevents useStripe() crash
-  if (!stripeReady) {
+  // Don't render until inside Elements provider (context is false outside provider)
+  if (!stripeCtx) {
     return <Button disabled size="large" className="w-full">Place order</Button>
   }
 
-  return <StripePaymentButtonInner cart={cart} notReady={notReady} data-testid={dataTestId} onBeforeSubmit={onBeforeSubmit} />
+  return (
+    <StripePaymentButtonInner
+      cart={cart}
+      notReady={notReady}
+      data-testid={dataTestId}
+      onBeforeSubmit={onBeforeSubmit}
+      clientSecret={stripeCtx.clientSecret}
+      paymentIntentId={stripeCtx.paymentIntentId}
+    />
+  )
 }
 
 const StripePaymentButtonInner = ({
@@ -162,29 +168,21 @@ const StripePaymentButtonInner = ({
   notReady,
   "data-testid": dataTestId,
   onBeforeSubmit,
+  clientSecret,
+  paymentIntentId,
 }: {
   cart: HttpTypes.StoreCart
   notReady: boolean
   "data-testid"?: string
   onBeforeSubmit?: () => Promise<void>
+  clientSecret: string
+  paymentIntentId: string | null
 }) => {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const stripe = useStripe()
   const elements = useElements()
-
-  const session = cart.payment_collection?.payment_sessions?.find(
-    (s) => s.status === "pending"
-  )
-
-  // clientSecret must be a plain string for stripe.confirmPayment()
-  const rawSecret = session?.data?.client_secret
-  const clientSecret: string | undefined = typeof rawSecret === "string"
-    ? rawSecret
-    : typeof rawSecret === "object" && rawSecret !== null
-      ? (rawSecret as any).clientSecret
-      : undefined
 
   const isDisabled = !stripe || !elements || notReady
 
@@ -231,7 +229,7 @@ const StripePaymentButtonInner = ({
 
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
-      clientSecret: clientSecret as string,
+      clientSecret,
       confirmParams: {
         return_url: `${window.location.origin}${window.location.pathname}?payment_return=1`,
         payment_method_data: {
@@ -251,6 +249,25 @@ const StripePaymentButtonInner = ({
     }
 
     if (paymentIntent?.status === "succeeded" || paymentIntent?.status === "requires_capture") {
+      // Mark the Medusa payment session as authorized using the per-clinic intent,
+      // so authorizePaymentSessionsStep in cart.complete() skips global Stripe re-verification
+      try {
+        const authRes = await fetch("/api/mark-payment-authorized", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cartId: cart.id, paymentIntentId }),
+        })
+        if (!authRes.ok) {
+          const err = await authRes.json()
+          setErrorMessage(err.message || "Failed to authorize payment")
+          setSubmitting(false)
+          return
+        }
+      } catch {
+        setErrorMessage("Failed to authorize payment — please contact support")
+        setSubmitting(false)
+        return
+      }
       onPaymentCompleted()
     }
   }

@@ -5,7 +5,7 @@ import React, { useEffect, useState } from "react"
 import StripeWrapper from "./stripe-wrapper"
 import PayPalWrapper from "./paypal-wrapper"
 import { HttpTypes } from "@medusajs/types"
-import { isStripeLike, isPaypal } from "@lib/constants"
+import { isPaypal } from "@lib/constants"
 
 type PaymentWrapperProps = {
   cart: HttpTypes.StoreCart
@@ -24,17 +24,23 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
   const [stripePromise, setStripePromise] = useState<Promise<any> | null>(null)
   const [stripeKey, setStripeKey] = useState<string | undefined>(undefined)
   const [paypalClientId, setPaypalClientId] = useState<string | null>(null)
-  const [clinicClientSecret, setClinicClientSecret] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [clinicClientSecret, setClinicClientSecret] = useState<string | null>(null)
+  const [clinicPaymentIntentId, setClinicPaymentIntentId] = useState<string | null>(null)
+
+  const paymentSession = cart.payment_collection?.payment_sessions?.find(
+    (s) => s.status === "pending"
+  )
 
   const cartTotal = (cart as any)?.total ?? 0
 
   useEffect(() => {
-    // Only run when we have a positive total (shipping selected)
     if (cartTotal <= 0) return
-    // Reset state for fresh fetch
+    // Reset secrets on cart total change so a fresh intent is created
     setClinicClientSecret(null)
+    setClinicPaymentIntentId(null)
     setLoading(true)
+
     const loadConfig = async () => {
       try {
         const res = await fetch("/api/tenant-stripe-key")
@@ -45,17 +51,15 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
             setStripeKey(data.stripeKey)
             setStripePromise(loadStripe(data.stripeKey))
 
-            // Always create a fresh PaymentIntent using the clinic's own Stripe key
-            // This bypasses Medusa's global STRIPE_API_KEY and uses the per-clinic key
-            if (cartTotal > 0 && !noPaymentNeeded) {
+            if (!noPaymentNeeded) {
               try {
-                const intentRes = await fetch(`/api/create-payment-intent`, {
+                const intentRes = await fetch("/api/create-payment-intent", {
                   method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
+                  headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
-                    domain: typeof window !== "undefined" ? ((window as any).__TENANT_DOMAIN__ || window.location.hostname) : "",
+                    domain: typeof window !== "undefined"
+                      ? ((window as any).__TENANT_DOMAIN__ || window.location.hostname)
+                      : "",
                     amount: cartTotal,
                     currency: cart.currency_code || "usd",
                     cartId: cart.id,
@@ -63,15 +67,13 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
                 })
                 if (intentRes.ok) {
                   const intentData = await intentRes.json()
-                  const cs = intentData.clientSecret
-                  if (cs && typeof cs === "string") {
-                    setClinicClientSecret(cs)
+                  if (intentData.clientSecret && typeof intentData.clientSecret === "string") {
+                    setClinicClientSecret(intentData.clientSecret)
+                    setClinicPaymentIntentId(intentData.paymentIntentId || null)
                   }
-                } else {
-                  console.error("create-payment-intent failed:", await intentRes.text())
                 }
               } catch (e) {
-                console.error("Failed to create clinic payment intent", e)
+                console.error("[PaymentWrapper] Failed to create payment intent", e)
               }
             }
           }
@@ -93,33 +95,7 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
     loadConfig().finally(() => setLoading(false))
   }, [cartTotal])
 
-  const paymentSession = cart.payment_collection?.payment_sessions?.find(
-    (s) => s.status === "pending"
-  )
-
   const isPaypalSession = !noPaymentNeeded && isPaypal(paymentSession?.provider_id) && !!paymentSession
-
-  // Use clinic's own client_secret if available
-  // Only fall back to Medusa session secret if it's test-mode (matches the publishable key mode)
-  // For live keys, never use the test-mode fallback
-  const rawSecret = clinicClientSecret || 
-    (stripeKey?.startsWith("pk_test_") ? paymentSession?.data?.client_secret : null)
-  const effectiveClientSecret = typeof rawSecret === "string"
-    ? rawSecret
-    : typeof rawSecret === "object" && rawSecret !== null
-      ? (rawSecret as any).clientSecret || undefined
-      : undefined
-
-  // Debug — remove after fix
-  if (typeof window !== "undefined") {
-    console.log("[PaymentWrapper] clinicClientSecret:", clinicClientSecret?.slice(0, 30))
-    console.log("[PaymentWrapper] effectiveClientSecret:", effectiveClientSecret?.slice(0, 30))
-    console.log("[PaymentWrapper] stripePromise:", !!stripePromise)
-    console.log("[PaymentWrapper] loading:", loading)
-    console.log("[PaymentWrapper] noPaymentNeeded:", noPaymentNeeded)
-  }
-  const isStripeSession = isStripeLike(paymentSession?.provider_id ?? (stripeKey ? "pp_stripe_stripe" : ""))
-    && !!effectiveClientSecret
 
   if (loading) {
     return (
@@ -140,23 +116,14 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
     )
   }
 
-  if (!noPaymentNeeded && stripePromise && effectiveClientSecret) {
-    // Build a synthetic payment session with the clinic's client_secret
-    const syntheticSession = {
-      ...(paymentSession || {}),
-      provider_id: paymentSession?.provider_id || "pp_stripe_stripe",
-      data: {
-        ...(paymentSession?.data || {}),
-        client_secret: effectiveClientSecret,
-      },
-    } as any
-
+  if (!noPaymentNeeded && stripePromise && clinicClientSecret) {
     return (
       <StripeWrapper
-        paymentSession={syntheticSession}
+        paymentSession={paymentSession}
         stripeKey={stripeKey}
         stripePromise={stripePromise}
-        clientSecret={effectiveClientSecret}
+        clientSecret={clinicClientSecret}
+        paymentIntentId={clinicPaymentIntentId}
       >
         {children}
       </StripeWrapper>
