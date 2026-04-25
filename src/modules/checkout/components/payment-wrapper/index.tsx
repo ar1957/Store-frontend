@@ -20,6 +20,9 @@ interface TenantPaymentConfig {
   paymentProvider: string
 }
 
+// sessionStorage key for persisting PI across page refreshes
+const piStorageKey = (cartId: string) => `mhc_pi_${cartId}`
+
 const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPaymentNeeded }) => {
   const [stripePromise, setStripePromise] = useState<Promise<any> | null>(null)
   const [stripeKey, setStripeKey] = useState<string | undefined>(undefined)
@@ -37,64 +40,87 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
 
   useEffect(() => {
     if (cartTotal <= 0) return
-    // Reset secrets on cart total change so a fresh intent is created
-    setClinicClientSecret(null)
-    setClinicPaymentIntentId(null)
     setLoading(true)
 
     const loadConfig = async () => {
       try {
         const res = await fetch("/api/tenant-stripe-key")
-        if (res.ok) {
-          const data: TenantPaymentConfig = await res.json()
+        if (!res.ok) return
 
-          if (data.stripeKey && data.paymentProvider !== "paypal") {
-            setStripeKey(data.stripeKey)
-            setStripePromise(loadStripe(data.stripeKey))
+        const data: TenantPaymentConfig = await res.json()
+        if (!data.stripeKey || data.paymentProvider === "paypal") return
 
-            if (!noPaymentNeeded) {
-              try {
-                const intentRes = await fetch("/api/create-payment-intent", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    domain: typeof window !== "undefined"
-                      ? ((window as any).__TENANT_DOMAIN__ || window.location.hostname)
-                      : "",
-                    amount: cartTotal,
-                    currency: cart.currency_code || "usd",
-                    cartId: cart.id,
-                  }),
-                })
-                if (intentRes.ok) {
-                  const intentData = await intentRes.json()
-                  if (intentData.clientSecret && typeof intentData.clientSecret === "string") {
-                    setClinicClientSecret(intentData.clientSecret)
-                    setClinicPaymentIntentId(intentData.paymentIntentId || null)
-                  }
-                }
-              } catch (e) {
-                console.error("[PaymentWrapper] Failed to create payment intent", e)
+        setStripeKey(data.stripeKey)
+        setStripePromise(loadStripe(data.stripeKey))
+
+        if (!noPaymentNeeded) {
+          // Check sessionStorage for an existing PI for this cart+amount
+          // This prevents creating duplicate PIs on page refresh
+          const storageKey = piStorageKey(cart.id)
+          const stored = sessionStorage.getItem(storageKey)
+          if (stored) {
+            try {
+              const { clientSecret, paymentIntentId, amount } = JSON.parse(stored)
+              if (clientSecret && paymentIntentId && amount === cartTotal) {
+                // Reuse existing PI — no new Stripe transaction created
+                setClinicClientSecret(clientSecret)
+                setClinicPaymentIntentId(paymentIntentId)
+                return
               }
+            } catch {
+              // Corrupt storage — fall through to create new PI
             }
           }
 
-          if (data.paypalClientId && data.paymentProvider !== "stripe") {
-            setPaypalClientId(data.paypalClientId)
+          // No valid cached PI — create a new one
+          // Pass the old PI ID (from storage) so backend can cancel it
+          let previousPaymentIntentId: string | null = null
+          if (stored) {
+            try {
+              previousPaymentIntentId = JSON.parse(stored)?.paymentIntentId || null
+            } catch {}
           }
-          return
+          sessionStorage.removeItem(piStorageKey(cart.id))
+
+          const intentRes = await fetch("/api/create-payment-intent", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              domain: typeof window !== "undefined"
+                ? ((window as any).__TENANT_DOMAIN__ || window.location.hostname)
+                : "",
+              amount: cartTotal,
+              currency: cart.currency_code || "usd",
+              cartId: cart.id,
+              previousPaymentIntentId,
+            }),
+          })
+
+          if (intentRes.ok) {
+            const intentData = await intentRes.json()
+            if (intentData.clientSecret && typeof intentData.clientSecret === "string") {
+              setClinicClientSecret(intentData.clientSecret)
+              setClinicPaymentIntentId(intentData.paymentIntentId || null)
+              // Persist PI in sessionStorage so page refreshes reuse it
+              sessionStorage.setItem(piStorageKey(cart.id), JSON.stringify({
+                clientSecret: intentData.clientSecret,
+                paymentIntentId: intentData.paymentIntentId,
+                amount: cartTotal,
+              }))
+            }
+          }
+        }
+
+        if (data.paypalClientId && data.paymentProvider !== "stripe") {
+          setPaypalClientId(data.paypalClientId)
         }
       } catch (err) {
-        console.error("Failed to load payment config", err)
-      }
-      const fallbackKey = process.env.NEXT_PUBLIC_STRIPE_KEY
-      if (fallbackKey) {
-        setStripeKey(fallbackKey)
-        setStripePromise(loadStripe(fallbackKey))
+        console.error("[PaymentWrapper] error:", err)
       }
     }
+
     loadConfig().finally(() => setLoading(false))
-  }, [cartTotal])
+  }, [cartTotal, cart.id])
 
   const isPaypalSession = !noPaymentNeeded && isPaypal(paymentSession?.provider_id) && !!paymentSession
 

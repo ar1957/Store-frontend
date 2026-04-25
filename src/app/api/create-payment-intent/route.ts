@@ -8,8 +8,6 @@ export async function POST(request: NextRequest) {
     const host = request.headers.get("host") || ""
     const xForwardedHost = request.headers.get("x-forwarded-host") || ""
 
-    // Use domain from body first (sent by client with __TENANT_DOMAIN__)
-    // Fall back to x-forwarded-host (set by nginx on EB), then host
     const domain = body.domain || xForwardedHost.split(":")[0] || host.split(":")[0]
 
     if (!domain) {
@@ -32,6 +30,8 @@ export async function POST(request: NextRequest) {
         amount: body.amount,
         currency: body.currency || "usd",
         cartId: body.cartId,
+        // Pass previous PI ID so backend can cancel it before creating a new one
+        previousPaymentIntentId: body.previousPaymentIntentId || null,
       }),
       cache: "no-store",
     })
