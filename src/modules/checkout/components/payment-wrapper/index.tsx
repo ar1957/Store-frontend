@@ -32,7 +32,8 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
     (s) => s.status === "pending"
   )
 
-  const cartTotal = (cart as any)?.total ?? 0
+  // cart.total is in dollars — multiply by 100 to convert to cents for Stripe
+  const cartTotal = Math.round(((cart as any)?.total ?? 0) * 100)
 
   useEffect(() => {
     if (cartTotal <= 0) return
