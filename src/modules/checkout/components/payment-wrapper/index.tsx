@@ -1,7 +1,7 @@
 "use client"
 
 import { loadStripe } from "@stripe/stripe-js"
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import StripeWrapper from "./stripe-wrapper"
 import PayPalWrapper from "./paypal-wrapper"
 import { HttpTypes } from "@medusajs/types"
@@ -17,6 +17,14 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
   const [stripePromise, setStripePromise] = useState<Promise<any> | null>(null)
   const [stripeKey, setStripeKey] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(true)
+  const [clinicClientSecret, setClinicClientSecret] = useState<string | null>(null)
+  const [clinicPaymentIntentId, setClinicPaymentIntentId] = useState<string | null>(null)
+  const intentCartTotal = useRef<number | null>(null)
+
+  const paymentSession = cart.payment_collection?.payment_sessions?.find(
+    (s) => s.status === "pending"
+  )
+  const isStripeActive = isStripeLike(paymentSession?.provider_id)
 
   useEffect(() => {
     const loadConfig = async () => {
@@ -42,9 +50,45 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
     loadConfig().finally(() => setLoading(false))
   }, [])
 
-  const paymentSession = cart.payment_collection?.payment_sessions?.find(
-    (s) => s.status === "pending"
-  )
+  // Reset intent when Stripe is no longer the active method
+  useEffect(() => {
+    if (!isStripeActive) {
+      setClinicClientSecret(null)
+      setClinicPaymentIntentId(null)
+      intentCartTotal.current = null
+    }
+  }, [isStripeActive])
+
+  // Create per-clinic payment intent when Stripe is active
+  useEffect(() => {
+    if (!isStripeActive || !cart.id || !cart.total || cart.total <= 0) return
+    // Skip if we already have an intent for this exact cart total
+    if (intentCartTotal.current === cart.total && clinicClientSecret) return
+    intentCartTotal.current = cart.total
+
+    const createIntent = async () => {
+      try {
+        const res = await fetch("/api/create-payment-intent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: cart.total,
+            currency: cart.region?.currency_code || "usd",
+            cartId: cart.id,
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setClinicClientSecret(data.clientSecret || null)
+          setClinicPaymentIntentId(data.paymentIntentId || null)
+        }
+      } catch (err) {
+        console.error("[PaymentWrapper] Failed to create payment intent", err)
+      }
+    }
+
+    createIntent()
+  }, [isStripeActive, cart.id, cart.total])
 
   if (loading) {
     return (
@@ -57,8 +101,6 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
     )
   }
 
-  // Per official Medusa PayPal docs: only wrap with PayPalWrapper when a PayPal session exists
-  // Skip if no payment needed (zero total / promo covers full amount)
   if (!noPaymentNeeded && isPaypal(paymentSession?.provider_id) && paymentSession) {
     return (
       <PayPalWrapper paymentSession={paymentSession}>
@@ -67,13 +109,15 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
     )
   }
 
-  const isStripeSession =
-    isStripeLike(paymentSession?.provider_id) &&
-    !!paymentSession?.data?.client_secret
-
-  if (isStripeSession && stripePromise) {
+  if (isStripeActive && stripePromise) {
     return (
-      <StripeWrapper paymentSession={paymentSession} stripeKey={stripeKey} stripePromise={stripePromise}>
+      <StripeWrapper
+        paymentSession={paymentSession!}
+        stripeKey={stripeKey}
+        stripePromise={stripePromise}
+        clientSecret={clinicClientSecret || ""}
+        paymentIntentId={clinicPaymentIntentId}
+      >
         {children}
       </StripeWrapper>
     )
