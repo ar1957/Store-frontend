@@ -20,7 +20,6 @@ interface TenantPaymentConfig {
   paymentProvider: string
 }
 
-// sessionStorage key for persisting PI across page refreshes
 const piStorageKey = (cartId: string) => `mhc_pi_${cartId}`
 
 const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPaymentNeeded }) => {
@@ -35,11 +34,20 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
     (s) => s.status === "pending"
   )
 
-  // cart.total is in dollars — multiply by 100 to convert to cents for Stripe
   const cartTotal = Math.round(((cart as any)?.total ?? 0) * 100)
 
   useEffect(() => {
-    if (cartTotal <= 0) return
+    // If no payment needed (zero total / gift card), skip Stripe setup entirely
+    if (noPaymentNeeded) {
+      setLoading(false)
+      return
+    }
+
+    if (cartTotal <= 0) {
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
 
     const loadConfig = async () => {
@@ -53,61 +61,53 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
         setStripeKey(data.stripeKey)
         setStripePromise(loadStripe(data.stripeKey))
 
-        if (!noPaymentNeeded) {
-          // Check sessionStorage for an existing PI for this cart+amount
-          // This prevents creating duplicate PIs on page refresh
-          const storageKey = piStorageKey(cart.id)
-          const stored = sessionStorage.getItem(storageKey)
-          if (stored) {
-            try {
-              const { clientSecret, paymentIntentId, amount } = JSON.parse(stored)
-              if (clientSecret && paymentIntentId && amount === cartTotal) {
-                // Reuse existing PI — no new Stripe transaction created
-                setClinicClientSecret(clientSecret)
-                setClinicPaymentIntentId(paymentIntentId)
-                return
-              }
-            } catch {
-              // Corrupt storage — fall through to create new PI
+        // Check sessionStorage for an existing PI for this cart+amount
+        const storageKey = piStorageKey(cart.id)
+        const stored = sessionStorage.getItem(storageKey)
+        if (stored) {
+          try {
+            const { clientSecret, paymentIntentId, amount } = JSON.parse(stored)
+            if (clientSecret && paymentIntentId && amount === cartTotal) {
+              setClinicClientSecret(clientSecret)
+              setClinicPaymentIntentId(paymentIntentId)
+              return
             }
+          } catch {
+            // Corrupt storage — fall through to create new PI
           }
+        }
 
-          // No valid cached PI — create a new one
-          // Pass the old PI ID (from storage) so backend can cancel it
-          let previousPaymentIntentId: string | null = null
-          if (stored) {
-            try {
-              previousPaymentIntentId = JSON.parse(stored)?.paymentIntentId || null
-            } catch {}
-          }
-          sessionStorage.removeItem(piStorageKey(cart.id))
+        // No valid cached PI — create a new one
+        let previousPaymentIntentId: string | null = null
+        if (stored) {
+          try { previousPaymentIntentId = JSON.parse(stored)?.paymentIntentId || null } catch {}
+        }
+        sessionStorage.removeItem(piStorageKey(cart.id))
 
-          const intentRes = await fetch("/api/create-payment-intent", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              domain: typeof window !== "undefined"
-                ? ((window as any).__TENANT_DOMAIN__ || window.location.hostname)
-                : "",
+        const intentRes = await fetch("/api/create-payment-intent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            domain: typeof window !== "undefined"
+              ? ((window as any).__TENANT_DOMAIN__ || window.location.hostname)
+              : "",
+            amount: cartTotal,
+            currency: cart.currency_code || "usd",
+            cartId: cart.id,
+            previousPaymentIntentId,
+          }),
+        })
+
+        if (intentRes.ok) {
+          const intentData = await intentRes.json()
+          if (intentData.clientSecret && typeof intentData.clientSecret === "string") {
+            setClinicClientSecret(intentData.clientSecret)
+            setClinicPaymentIntentId(intentData.paymentIntentId || null)
+            sessionStorage.setItem(piStorageKey(cart.id), JSON.stringify({
+              clientSecret: intentData.clientSecret,
+              paymentIntentId: intentData.paymentIntentId,
               amount: cartTotal,
-              currency: cart.currency_code || "usd",
-              cartId: cart.id,
-              previousPaymentIntentId,
-            }),
-          })
-
-          if (intentRes.ok) {
-            const intentData = await intentRes.json()
-            if (intentData.clientSecret && typeof intentData.clientSecret === "string") {
-              setClinicClientSecret(intentData.clientSecret)
-              setClinicPaymentIntentId(intentData.paymentIntentId || null)
-              // Persist PI in sessionStorage so page refreshes reuse it
-              sessionStorage.setItem(piStorageKey(cart.id), JSON.stringify({
-                clientSecret: intentData.clientSecret,
-                paymentIntentId: intentData.paymentIntentId,
-                amount: cartTotal,
-              }))
-            }
+            }))
           }
         }
 
@@ -120,7 +120,7 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
     }
 
     loadConfig().finally(() => setLoading(false))
-  }, [cartTotal, cart.id])
+  }, [cartTotal, cart.id, noPaymentNeeded])
 
   const isPaypalSession = !noPaymentNeeded && isPaypal(paymentSession?.provider_id) && !!paymentSession
 
