@@ -1,7 +1,6 @@
 "use client"
 
 import { isManual, isPaypal, isStripeLike } from "@lib/constants"
-import { placeOrder } from "@lib/data/cart"
 import { HttpTypes } from "@medusajs/types"
 import { Button } from "@medusajs/ui"
 import { useElements, useStripe } from "@stripe/react-stripe-js"
@@ -9,6 +8,7 @@ import React, { useContext, useState } from "react"
 import ErrorMessage from "../error-message"
 import { StripeContext, StripeContextValue } from "../payment-wrapper/stripe-wrapper"
 import PayPalPaymentButton from "./paypal-payment-button"
+
 
 type PaymentButtonProps = {
   cart: HttpTypes.StoreCart
@@ -43,7 +43,6 @@ function ProcessingOverlay() {
         maxWidth: 340,
         textAlign: "center",
       }}>
-        {/* Spinner */}
         <div style={{
           width: 52,
           height: 52,
@@ -86,6 +85,7 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
         notReady={notReady}
         data-testid={dataTestId}
         onBeforeSubmit={onBeforeSubmit}
+        cart={cart}
       />
     )
   }
@@ -94,8 +94,6 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
     (s) => s.status === "pending"
   )
 
-  // Use selectedPaymentMethod prop first (it's already validated against available methods)
-  // Only fall back to session provider if no selectedPaymentMethod given
   const activeProvider = selectedPaymentMethod || paymentSession?.provider_id || ""
 
   if (isStripeLike(activeProvider)) {
@@ -110,8 +108,6 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
   }
 
   if (isPaypal(activeProvider)) {
-    // Only render PayPalPaymentButton when a PayPal session exists
-    // (PayPalButtons requires PayPalScriptProvider which is only mounted when session exists)
     if (!paymentSession || !isPaypal(paymentSession.provider_id)) {
       return <Button disabled size="large" className="w-full">Setting up PayPal…</Button>
     }
@@ -126,11 +122,24 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
   }
   if (isManual(activeProvider)) {
     return (
-      <ManualTestPaymentButton notReady={notReady} data-testid={dataTestId} />
+      <ManualTestPaymentButton notReady={notReady} data-testid={dataTestId} cart={cart} />
     )
   }
 
   return <Button disabled size="large" className="w-full">Select a payment method</Button>
+}
+
+async function completeCartViaClinicEndpoint(cartId: string): Promise<{ type: string; order?: any }> {
+  const res = await fetch("/api/complete-cart", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cartId }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: "Unknown error" }))
+    throw new Error(err.message || `complete-cart failed with status ${res.status}`)
+  }
+  return res.json()
 }
 
 const StripePaymentButton = ({
@@ -146,7 +155,6 @@ const StripePaymentButton = ({
 }) => {
   const stripeCtx = useContext(StripeContext)
 
-  // Don't render until inside Elements provider (context is false outside provider)
   if (!stripeCtx) {
     return <Button disabled size="large" className="w-full">Place order</Button>
   }
@@ -186,21 +194,29 @@ const StripePaymentButtonInner = ({
 
   const isDisabled = !stripe || !elements || notReady
 
-  const onPaymentCompleted = async () => {
-    await placeOrder()
-      .catch(async (err) => {
-        // 409 = already being completed — order exists, redirect to orders page
-        if (err?.message?.includes("409") || err?.message?.includes("conflicted") || err?.message?.includes("already being completed")) {
-          await new Promise(r => setTimeout(r, 2000))
-          const cc = cart.shipping_address?.country_code?.toLowerCase() || "us"
-          window.location.href = `/${cc}/account/orders`
-          return
-        }
-        setErrorMessage(err.message)
-        setSubmitting(false)
-      })
-    // intentionally don't setSubmitting(false) on success — overlay stays
-    // until the page navigates away to the confirmation page
+  const onPaymentCompleted = async (cartId: string) => {
+    try {
+      const result = await completeCartViaClinicEndpoint(cartId)
+      if (result?.type === "order" && result.order) {
+        const countryCode = result.order.shipping_address?.country_code?.toLowerCase() || "us"
+        // Remove the cart cookie so next session starts fresh
+        window.location.href = `/${countryCode}/order/${result.order.id}/confirmed`
+        return
+      }
+      // Fallback — shouldn't happen
+      setErrorMessage("Order created but could not redirect. Please check your email.")
+      setSubmitting(false)
+    } catch (err: any) {
+      // 409 = already being completed
+      if (err?.message?.includes("409") || err?.message?.includes("already")) {
+        await new Promise(r => setTimeout(r, 2000))
+        const cc = cart.shipping_address?.country_code?.toLowerCase() || "us"
+        window.location.href = `/${cc}/account/orders`
+        return
+      }
+      setErrorMessage(err.message || "Failed to complete order")
+      setSubmitting(false)
+    }
   }
 
   const handlePayment = async () => {
@@ -215,11 +231,10 @@ const StripePaymentButtonInner = ({
       try {
         await onBeforeSubmit()
       } catch {
-        // address save failure is non-fatal — address may already be saved
+        // address save failure is non-fatal
       }
     }
 
-    // Submit the Elements form first (required for Payment Element)
     const { error: submitError } = await elements.submit()
     if (submitError) {
       setErrorMessage(submitError.message || "Payment failed")
@@ -249,8 +264,6 @@ const StripePaymentButtonInner = ({
     }
 
     if (paymentIntent?.status === "succeeded" || paymentIntent?.status === "requires_capture") {
-      // Mark the Medusa payment session as authorized using the per-clinic intent,
-      // so authorizePaymentSessionsStep in cart.complete() skips global Stripe re-verification
       try {
         const authRes = await fetch("/api/mark-payment-authorized", {
           method: "POST",
@@ -268,7 +281,10 @@ const StripePaymentButtonInner = ({
         setSubmitting(false)
         return
       }
-      onPaymentCompleted()
+
+      // Use our custom endpoint instead of cart.complete() to avoid
+      // Medusa re-validating the PaymentIntent with the wrong Stripe key
+      await onPaymentCompleted(cart.id)
     }
   }
 
@@ -290,15 +306,16 @@ const StripePaymentButtonInner = ({
   )
 }
 
-// Zero-total orders (promo code covers full amount) — no payment session needed
 const ZeroTotalPaymentButton = ({
   notReady,
   "data-testid": dataTestId,
   onBeforeSubmit,
+  cart,
 }: {
   notReady: boolean
   "data-testid"?: string
   onBeforeSubmit?: () => Promise<void>
+  cart: HttpTypes.StoreCart
 }) => {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -309,16 +326,24 @@ const ZeroTotalPaymentButton = ({
     if (onBeforeSubmit) {
       try { await onBeforeSubmit() } catch { /* non-fatal */ }
     }
-    await placeOrder()
-      .catch(async (err) => {
-        if (err?.message?.includes("409") || err?.message?.includes("conflicted") || err?.message?.includes("already being completed")) {
-          await new Promise(r => setTimeout(r, 2000))
-          window.location.href = "/us/account/orders"
-          return
-        }
-        setErrorMessage(err.message)
-        setSubmitting(false)
-      })
+    try {
+      const result = await completeCartViaClinicEndpoint(cart.id)
+      if (result?.type === "order" && result.order) {
+        const countryCode = result.order.shipping_address?.country_code?.toLowerCase() || "us"
+        window.location.href = `/${countryCode}/order/${result.order.id}/confirmed`
+        return
+      }
+      setErrorMessage("Order created but could not redirect.")
+      setSubmitting(false)
+    } catch (err: any) {
+      if (err?.message?.includes("409") || err?.message?.includes("already")) {
+        await new Promise(r => setTimeout(r, 2000))
+        window.location.href = "/us/account/orders"
+        return
+      }
+      setErrorMessage(err.message)
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -339,16 +364,14 @@ const ZeroTotalPaymentButton = ({
   )
 }
 
-// PayPal payment button — must be rendered inside PaypalWrapper (PayPalScriptProvider)
-// Implemented in separate file to avoid hook-outside-provider errors
-// const PayPalPaymentButton = ... (see paypal-payment-button.tsx)
-
 const ManualTestPaymentButton = ({
   notReady,
   "data-testid": dataTestId,
+  cart,
 }: {
   notReady: boolean
   "data-testid"?: string
+  cart: HttpTypes.StoreCart
 }) => {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -356,15 +379,18 @@ const ManualTestPaymentButton = ({
   const handlePayment = async () => {
     if (submitting) return
     setSubmitting(true)
-    await placeOrder()
-      .catch((err) => {
-        // 409 = already being completed, treat as success
-        if (err?.message?.includes("409") || err?.message?.includes("conflicted") || err?.message?.includes("already being completed")) {
-          return
-        }
-        setErrorMessage(err.message)
-        setSubmitting(false)
-      })
+    try {
+      const result = await completeCartViaClinicEndpoint(cart.id)
+      if (result?.type === "order" && result.order) {
+        const countryCode = result.order.shipping_address?.country_code?.toLowerCase() || "us"
+        window.location.href = `/${countryCode}/order/${result.order.id}/confirmed`
+        return
+      }
+    } catch (err: any) {
+      if (err?.message?.includes("409") || err?.message?.includes("already")) return
+      setErrorMessage(err.message)
+      setSubmitting(false)
+    }
   }
 
   return (

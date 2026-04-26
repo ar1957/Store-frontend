@@ -142,7 +142,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
     if (!selectedPaymentMethod || (!isStripeLike(selectedPaymentMethod) && !isPaypal(selectedPaymentMethod))) return
     paymentInitialized.current = true
     setPaymentLoading(true)
-    initiatePaymentSession(liveCart, { provider_id: selectedPaymentMethod })
+    initiatePaymentSession(liveCart, { provider_id: "pp_system_default" })
       .then(() => retrieveCart(
         undefined,
         "*payment_collection, *payment_collection.payment_sessions, *shipping_methods"
@@ -158,7 +158,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
     // Only initiate session for Stripe — PayPal creates its session on button click
     if (isStripeLike(method)) {
       setPaymentLoading(true)
-      await initiatePaymentSession(liveCart, { provider_id: method })
+      await initiatePaymentSession(liveCart, { provider_id: "pp_system_default" })
         .catch(err => { setPaymentError(err.message); return null })
       const freshCart = await retrieveCart(
         undefined,
@@ -243,7 +243,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
     addressComplete &&
     (liveCart.shipping_methods?.length ?? 0) > 0 &&
     (noPaymentNeeded || activeSession || isPaypal(selectedPaymentMethod)) &&
-    (isStripeLike(selectedPaymentMethod) ? cardComplete : true) &&
+    (noPaymentNeeded || !isStripeLike(selectedPaymentMethod) || cardComplete) &&
     consentTerms &&
     consentPrivacy &&
     eligibilityVerified
@@ -412,7 +412,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
               {!addressComplete && <li>Shipping address</li>}
               {(liveCart.shipping_methods?.length ?? 0) === 0 && <li>Delivery method</li>}
               {!paidByGiftcard && !activeSession && !zeroTotal && !isPaypal(selectedPaymentMethod) && <li>Payment details</li>}
-              {isStripeLike(selectedPaymentMethod) && !cardComplete && activeSession && !zeroTotal && <li>Card details</li>}
+              {isStripeLike(selectedPaymentMethod) && !cardComplete && activeSession && !zeroTotal && !noPaymentNeeded && <li>Card details</li>}
               {!consentTerms && <li>Accept terms and conditions</li>}
               {!consentPrivacy && <li>Consent to privacy policy and telehealth terms</li>}
               {!eligibilityVerified && (

@@ -10,7 +10,7 @@ export type StripeContextValue = { clientSecret: string; paymentIntentId: string
 export const StripeContext = createContext<StripeContextValue>(false)
 
 type StripeWrapperProps = {
-  paymentSession: HttpTypes.StorePaymentSession
+  paymentSession?: HttpTypes.StorePaymentSession
   stripeKey?: string
   stripePromise: Promise<Stripe | null> | null
   clientSecret: string
