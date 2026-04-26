@@ -115,6 +115,10 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
 
   // ── Payment ────────────────────────────────────────────────────────
   const [liveCart, setLiveCart] = useState<HttpTypes.StoreCart>(cart)
+
+  // Sync liveCart when server re-renders cart prop (e.g. promo added/removed)
+  useEffect(() => { setLiveCart(cart) }, [(cart as any)?.total, (cart as any)?.discount_total])
+
   const [paymentLoading, setPaymentLoading] = useState(false)
   const activeSession = liveCart.payment_collection?.payment_sessions?.find(
     (s: any) => s.status === "pending"
