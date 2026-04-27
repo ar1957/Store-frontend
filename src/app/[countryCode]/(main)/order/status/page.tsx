@@ -16,6 +16,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string; ic
   pending_provider:    { label: "Pending Provider Clearance", color: "#92400e", bg: "#fef3c7", icon: "🩺" },
   pending_md_review:   { label: "Pending Physician Review",   color: "#1e40af", bg: "#dbeafe", icon: "👨‍⚕️" },
   processing_pharmacy: { label: "Processing by Pharmacy",     color: "#065f46", bg: "#d1fae5", icon: "💊" },
+  pending_pharmacy:    { label: "Being Prepared by Pharmacy", color: "#065f46", bg: "#d1fae5", icon: "💊" },
   shipped:             { label: "Medication Shipped",         color: "#1e3a5f", bg: "#e0f2fe", icon: "📦" },
   refund_pending:      { label: "Refund Processing",          color: "#7c2d12", bg: "#ffedd5", icon: "↩️" },
   refunded:            { label: "Refund Issued",              color: "#374151", bg: "#f3f4f6", icon: "✅" },

@@ -79,7 +79,7 @@ const ShippingAddress = ({
   const { ref: placesRef } = usePlacesWidget({
     apiKey: googleKey || undefined,
     onPlaceSelected: (place: any) => {
-      if (!place.address_components) return
+      if (!place?.address_components) return
       let num = "", route = "", city = "", state = "", zip = ""
       for (const c of place.address_components) {
         if (c.types.includes("street_number")) num = c.long_name
