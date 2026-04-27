@@ -23,6 +23,11 @@ const CartTemplate = ({
     // already a relative path — use as-is
   }
 
+  // Ensure country code prefix — Next.js routes require /[countryCode]/store
+  if (!shopHref.match(/^\/[a-z]{2}\//)) {
+    shopHref = `/us${shopHref.startsWith("/") ? shopHref : "/" + shopHref}`
+  }
+
   return (
     <div className="py-12">
       <div className="content-container" data-testid="cart-container">
