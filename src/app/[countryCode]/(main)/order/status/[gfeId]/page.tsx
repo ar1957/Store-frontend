@@ -24,8 +24,7 @@ const STATUS_STEPS = [
 // Map real statuses to step index
 function getStepIndex(status: string, pharmacyStatus?: string | null): number {
   if (status === "shipped") return 4
-  if (status === "processing_pharmacy") {
-    // If pharmacy has acknowledged the order (any non-empty status), show "pharmacy_received"
+  if (status === "processing_pharmacy" || status === "pending_pharmacy") {
     return pharmacyStatus ? 3 : 2
   }
   if (status === "pending_md_review") return 1
@@ -36,6 +35,7 @@ const STATUS_DESCRIPTIONS: Record<string, string> = {
   pending_provider:    "Your information has been submitted. A provider will review your consultation shortly.",
   pending_md_review:   "Your case has been referred to our Medical Director for additional review.",
   processing_pharmacy: "Your prescription has been approved and is being prepared by our pharmacy.",
+  pending_pharmacy:    "Your order is being prepared by our pharmacy and will ship soon.",
   shipped:             "Your medication is on its way! See tracking info below.",
   refund_pending:      "A refund is being processed for your order.",
   refunded:            "Your refund has been issued. Please allow 5–7 business days.",
@@ -115,7 +115,7 @@ export default function OrderStatusPage({ params: paramsPromise }: { params: Pro
 
   useEffect(() => { fetchStatus() }, [fetchStatus])
 
-  // Auto-poll every 30s while pending provider
+  // Auto-poll every 30s while pending provider (not needed for pending_pharmacy)
   useEffect(() => {
     if (!data || data.status !== "pending_provider") return
     const interval = setInterval(() => fetchStatus(), 30_000)
@@ -226,7 +226,7 @@ export default function OrderStatusPage({ params: paramsPromise }: { params: Pro
           </div>
         )}
 
-        {/* Virtual room link — only when pending provider */}
+        {/* Virtual room link — only when pending provider (not for direct-to-pharmacy orders) */}
         {data.status === "pending_provider" && data.virtualRoomUrl && (
           <div style={s.infoBox}>
             <p style={s.infoTitle}>📋 Complete Your Consultation</p>

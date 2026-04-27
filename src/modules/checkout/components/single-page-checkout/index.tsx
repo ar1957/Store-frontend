@@ -181,13 +181,54 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
   const cartMeta = (liveCart as any).metadata as Record<string, any> | null
 
   const [eligibilityVerified, setEligibilityVerified] = useState<boolean>(true)
+  const [cartRequiresEligibility, setCartRequiresEligibility] = useState<boolean>(false)
   const [showEligibilityModal, setShowEligibilityModal] = useState(false)
   const [eligibilitySaving, setEligibilitySaving] = useState(false)
 
   useEffect(() => {
-    const hasSession = !!sessionStorage.getItem("mhc_eligibility_data")
-    const hasMeta = !!(cartMeta?.eligibilityData || cartMeta?.locationId || cartMeta?.state)
-    setEligibilityVerified(hasSession || hasMeta)
+    const check = async () => {
+      const domain = typeof window !== "undefined"
+        ? ((window as any).__TENANT_DOMAIN__ || window.location.hostname)
+        : ""
+
+      // Collect unique product IDs from cart
+      const items = liveCart.items || []
+      const productIds = [...new Set(
+        items.map((i: any) => i.product_id || i.variant?.product_id).filter(Boolean)
+      )]
+
+      // If no products or no domain, skip eligibility gate entirely
+      if (!productIds.length || !domain) {
+        setCartRequiresEligibility(false)
+        setEligibilityVerified(true)
+        return
+      }
+
+      // Check all products in parallel — gate only if at least one is mapped to a treatment
+      const results = await Promise.all(
+        productIds.map((pid: string) =>
+          fetch(`/api/eligibility-check?domain=${encodeURIComponent(domain)}&productId=${encodeURIComponent(pid)}`)
+            .then(r => r.json())
+            .catch(() => ({ requiresEligibility: false }))
+        )
+      )
+
+      const anyRequires = results.some((r: any) => r.requiresEligibility === true)
+      setCartRequiresEligibility(anyRequires)
+
+      if (!anyRequires) {
+        // No mapped products in cart — no eligibility check needed
+        setEligibilityVerified(true)
+        return
+      }
+
+      // At least one product requires eligibility — check for existing data
+      const hasSession = !!sessionStorage.getItem("mhc_eligibility_data")
+      const hasMeta = !!(cartMeta?.eligibilityData || cartMeta?.locationId || cartMeta?.state)
+      setEligibilityVerified(hasSession || hasMeta)
+    }
+
+    check()
   }, [])
 
   const clinicDomain = typeof window !== "undefined"
@@ -250,7 +291,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
     (noPaymentNeeded || !isStripeLike(selectedPaymentMethod) || cardComplete) &&
     consentTerms &&
     consentPrivacy &&
-    eligibilityVerified
+    (!cartRequiresEligibility || eligibilityVerified)
 
   return (
     <>
@@ -419,7 +460,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
               {isStripeLike(selectedPaymentMethod) && !cardComplete && activeSession && !zeroTotal && !noPaymentNeeded && <li>Card details</li>}
               {!consentTerms && <li>Accept terms and conditions</li>}
               {!consentPrivacy && <li>Consent to privacy policy and telehealth terms</li>}
-              {!eligibilityVerified && (
+              {cartRequiresEligibility && !eligibilityVerified && (
                 <li>
                   Health eligibility screening —{" "}
                   <button
@@ -468,7 +509,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
     </div>
     </PaymentWrapper>
 
-      {showEligibilityModal && firstProductId && (
+      {cartRequiresEligibility && showEligibilityModal && firstProductId && (
         <EligibilityModal
           productId={firstProductId}
           productTitle={firstProductTitle}
