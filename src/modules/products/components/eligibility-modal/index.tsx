@@ -56,10 +56,144 @@ const PREGNANCY_OPTIONS = [
   { value: "none", label: "None of the above" },
 ]
 
+const BMI_CATEGORIES = [
+  { label: "Underweight", min: 0,    max: 18.5, color: "#0C447C", bg: "#B5D4F4", flex: 0.7 },
+  { label: "Normal",      min: 18.5, max: 25,   color: "#27500A", bg: "#C0DD97", flex: 1.3 },
+  { label: "Overweight",  min: 25,   max: 30,   color: "#633806", bg: "#FAC775", flex: 1.0 },
+  { label: "Obese",       min: 30,   max: 40,   color: "#791F1F", bg: "#F7C1C1", flex: 1.5 },
+  { label: "Severe",      min: 40,   max: 99,   color: "#501313", bg: "#F09595", flex: 0.5 },
+]
+
+const BMI_MIN = 10, BMI_MAX = 45
+
 function calcBMI(ft: number, inches: number, lbs: number): number {
   const totalInches = ft * 12 + inches
   if (!totalInches || !lbs) return 0
   return (lbs / (totalInches * totalInches)) * 703
+}
+
+function getBMICategory(bmi: number) {
+  return BMI_CATEGORIES.find(c => bmi < c.max) || BMI_CATEGORIES[BMI_CATEGORIES.length - 1]
+}
+
+function bmiToPercent(bmi: number): number {
+  const clamped = Math.min(Math.max(bmi, BMI_MIN), BMI_MAX)
+  return ((clamped - BMI_MIN) / (BMI_MAX - BMI_MIN)) * 100
+}
+
+function healthyWeightRange(ft: number, inches: number) {
+  const totalIn = ft * 12 + inches
+  return {
+    low: Math.round(18.5 * totalIn * totalIn / 703),
+    high: Math.round(24.9 * totalIn * totalIn / 703),
+  }
+}
+
+function BMIChart({ ft, inches, lbs, goalLbs }: { ft: number; inches: number; lbs: number; goalLbs: number }) {
+  const bmi = calcBMI(ft, inches, lbs)
+  if (bmi === 0) return null
+
+  const cat = getBMICategory(bmi)
+  const pct = bmiToPercent(bmi)
+  const goalBmi = calcBMI(ft, inches, goalLbs)
+  const goalPct = goalLbs > 0 ? bmiToPercent(goalBmi) : -1
+  const goalCat = goalLbs > 0 ? getBMICategory(goalBmi) : null
+  const { low, high } = healthyWeightRange(ft, inches)
+
+  const toNormal = lbs > high
+    ? `Lose ${Math.round(lbs - high)} lbs to reach healthy range`
+    : lbs < low
+    ? `Gain ${Math.round(low - lbs)} lbs to reach healthy range`
+    : "You are in the healthy weight range"
+
+  return (
+    <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+
+      {/* BMI number + category */}
+      <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ flex: 1, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10, padding: "10px 14px", textAlign: "center" }}>
+          <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Your BMI</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: cat.color, lineHeight: 1.2 }}>{bmi.toFixed(1)}</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: cat.color }}>{cat.label}</div>
+        </div>
+        <div style={{ flex: 1, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10, padding: "10px 14px", textAlign: "center" }}>
+          <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Healthy range</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#111", lineHeight: 1.4 }}>{low}–{high} lbs</div>
+          <div style={{ fontSize: 11, color: "#6b7280" }}>BMI 18.5 – 24.9</div>
+        </div>
+      </div>
+
+      {/* Color bar with needle */}
+      <div>
+        {/* Category labels */}
+        <div style={{ display: "flex", gap: 3, marginBottom: 3 }}>
+          {BMI_CATEGORIES.map(c => (
+            <div key={c.label} style={{
+              flex: c.flex, fontSize: 9, textAlign: "center", padding: "3px 2px",
+              borderRadius: 4, background: c.bg, color: c.color, fontWeight: 700,
+            }}>{c.label}</div>
+          ))}
+        </div>
+
+        {/* Color bar with needle */}
+        <div style={{ position: "relative", height: 24, display: "flex", borderRadius: 6, overflow: "visible" }}>
+          {/* Zones */}
+          <div style={{ display: "flex", width: "100%", borderRadius: 6, overflow: "hidden" }}>
+            {BMI_CATEGORIES.map(c => (
+              <div key={c.label} style={{ flex: c.flex, background: c.bg }} />
+            ))}
+          </div>
+
+          {/* Needle */}
+          <div style={{
+            position: "absolute",
+            left: `${pct}%`,
+            top: -6,
+            transform: "translateX(-50%)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            zIndex: 5,
+            transition: "left 0.4s ease",
+          }}>
+            <div style={{
+              width: 14, height: 14, borderRadius: "50%",
+              background: "#111", border: "2px solid #fff",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+            }} />
+            <div style={{ width: 2, height: 20, background: "#111" }} />
+          </div>
+
+          {/* Goal weight star marker */}
+          {goalPct >= 0 && (
+            <div style={{
+              position: "absolute",
+              left: `${goalPct}%`,
+              top: -10,
+              transform: "translateX(-50%)",
+              fontSize: 18,
+              zIndex: 4,
+              transition: "left 0.4s ease",
+              filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))",
+            }}>⭐</div>
+          )}
+        </div>
+
+        {/* Tick labels */}
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#9ca3af", marginTop: 3, padding: "0 2px" }}>
+          {["10", "18.5", "25", "30", "40", "45+"].map(t => <span key={t}>{t}</span>)}
+        </div>
+      </div>
+
+      {/* Status message */}
+      <div style={{
+        fontSize: 12, textAlign: "center", padding: "8px 12px",
+        borderRadius: 8, background: cat.bg + "55", color: cat.color, fontWeight: 600,
+      }}>
+        {toNormal}
+      </div>
+    </div>
+  )
 }
 
 function getPublishableKey(): string {
@@ -79,96 +213,84 @@ export default function EligibilityModal({
   const [error, setError] = useState("")
   const [blocked, setBlocked] = useState("")
 
-  const totalSteps = form.sex === "female" ? 7 : 6
-
   useEffect(() => {
+    const key = getPublishableKey()
     fetch(`/api/eligibility-states?domain=${encodeURIComponent(clinicDomain)}`, {
-      headers: { "x-publishable-api-key": getPublishableKey() }
+      headers: {
+        "x-publishable-api-key": key,
+      },
     })
-      .then(r => r.json())
-      .then(d => {
-        if (d.message && !d.locations) {
-          console.error("[EligStates] backend error:", d.message)
-          setError(`Failed to load states: ${d.message}`)
-          return
-        }
-        const seen = new Set<string>()
-        const unique = (d.locations || []).filter((l: any) => {
+      .then(r => r.ok ? r.json() : { locations: [] })
+      .then(data => {
+        const seen = new Set()
+        const unique = (data.locations || []).filter((l: any) => {
           if (seen.has(l.state)) return false
           seen.add(l.state)
           return true
         })
         setStates(unique)
-        if (unique.length === 0) setError("")
       })
-      .catch(err => {
-        console.error("[EligStates] fetch error:", err)
-        setStates([])
-        setError("")
-      })
+      .catch(() => setStates([]))
       .finally(() => setLoadingStates(false))
   }, [clinicDomain])
 
-  const advance = () => setStep(s => s + 1)
-
-  const next = () => {
-    setError("")
-    if (step === 1) {
-      if (!form.state) return setError("Please select your state")
-      if (!form.locationId) return setError("Your state is not available for this clinic")
-    }
-    if (step === 2) {
-      if (!form.dob) return setError("Please enter your date of birth")
-      // Age validation: must be between 15 and 100
-      const today = new Date()
-      const birth = new Date(form.dob)
-      let age = today.getFullYear() - birth.getFullYear()
-      const monthDiff = today.getMonth() - birth.getMonth()
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--
-      if (age < 15) return setError("You must be at least 15 years old to continue.")
-      if (age > 100) return setError("Please enter a valid date of birth.")
-      if (!form.sex) return setError("Please select your sex")
-    }
-    if (step === 3 && form.sex === "female") {
-      if (!form.pregnancy) return setError("Please select an option")
-      if (form.pregnancy !== "none") {
-        setBlocked("GLP-1s are not recommended for women who are pregnant or breastfeeding. We recommend discussing your concern regarding potential weight loss treatment and guidance on weight management with your OB-GYN or primary healthcare provider.")
-        return
-      }
-    }
-    if (step === (form.sex === "female" ? 4 : 3)) {
-      if (form.hasMedicalConditions === null) return setError("Please select Yes or No")
-    }
-    if (step === (form.sex === "female" ? 5 : 4)) {
-      if (form.hasAllergies === null) return setError("Please select Yes or No")
-    }
-    if (step === totalSteps) {
-      handleSubmit()
-      return
-    }
-    advance()
-  }
+  const totalSteps = form.sex === "female" ? 7 : 6
 
   const back = () => {
     setError("")
-    setBlocked("")
     setStep(s => Math.max(1, s - 1))
   }
 
-  const handleSubmit = async () => {
-    if (!form.weightLbs) return setError("Please enter your weight")
-    if (!form.goalWeightLbs) return setError("Please enter your goal weight")
-
-    const bmi = calcBMI(form.heightFt, form.heightIn, form.weightLbs)
-    const meds = form.currentMedications
-      .filter(m => m !== "Other (please list any other medications)")
-      .join(", ")
-    const allMeds = form.otherMedication ? `${meds}, ${form.otherMedication}` : meds
-
-    setSubmitting(true)
+  const next = () => {
     setError("")
-    try {
-      await onApproved({
+
+    if (step === 1) {
+      if (!form.state) return setError("Please select your state")
+      return setStep(2)
+    }
+    if (step === 2) {
+      if (!form.dob) return setError("Please enter your date of birth")
+      if (!form.sex) return setError("Please select your biological sex")
+      return setStep(3)
+    }
+    if (step === 3 && form.sex === "female") {
+      if (!form.pregnancy) return setError("Please select an option")
+      return setStep(4)
+    }
+
+    const medicalStep = form.sex === "female" ? 4 : 3
+    const allergyStep = form.sex === "female" ? 5 : 4
+    const medicationsStep = form.sex === "female" ? 6 : 5
+
+    if (step === medicalStep) {
+      if (form.hasMedicalConditions === null) return setError("Please select an option")
+      if (form.hasMedicalConditions && !form.medicalConditions.trim()) return setError("Please describe your medical conditions")
+      return setStep(allergyStep)
+    }
+    if (step === allergyStep) {
+      if (form.hasAllergies === null) return setError("Please select an option")
+      if (form.hasAllergies && !form.allergies.trim()) return setError("Please describe your allergies")
+      return setStep(medicationsStep)
+    }
+    if (step === medicationsStep) {
+      if (!form.currentMedications.length) return setError("Please select at least one option")
+      return setStep(totalSteps)
+    }
+
+    if (step === totalSteps) {
+      if (!form.heightFt && form.heightFt !== 0) return setError("Please select your height")
+      if (!form.weightLbs) return setError("Please enter your weight")
+      if (!form.goalWeightLbs) return setError("Please enter your goal weight")
+
+      const bmi = calcBMI(form.heightFt, form.heightIn, form.weightLbs)
+      const meds = form.currentMedications
+        .filter(m => m !== "Other (please list any other medications)")
+        .join(", ")
+      const allMeds = form.otherMedication ? `${meds}, ${form.otherMedication}` : meds
+
+      setSubmitting(true)
+      setError("")
+      onApproved({
         domain: clinicDomain,
         productId,
         locationId: form.locationId,
@@ -184,10 +306,10 @@ export default function EligibilityModal({
         weightLbs: form.weightLbs,
         goalWeightLbs: form.goalWeightLbs,
         bmi: Math.round(bmi * 10) / 10,
+      }).catch(() => {
+        setError("Something went wrong. Please try again.")
+        setSubmitting(false)
       })
-    } catch {
-      setError("Something went wrong. Please try again.")
-      setSubmitting(false)
     }
   }
 
@@ -195,7 +317,6 @@ export default function EligibilityModal({
     ? ["State", "About You", "Pregnancy", "Medical History", "Allergies", "Medications", "Body Metrics"][step - 1]
     : ["State", "About You", "Medical History", "Allergies", "Medications", "Body Metrics"][step - 1]
 
-  // Medical & allergy step indexes
   const medicalStep = form.sex === "female" ? 4 : 3
   const allergyStep = form.sex === "female" ? 5 : 4
   const medicationsStep = form.sex === "female" ? 6 : 5
@@ -237,7 +358,7 @@ export default function EligibilityModal({
             </div>
           )}
 
-          {/* STEP 1 — State: tap-to-select grid, auto-advances */}
+          {/* STEP 1 — State */}
           {!blocked && step === 1 && (
             <div style={s.stepWrap}>
               <h2 style={s.question}>What state do you live in?</h2>
@@ -260,11 +381,10 @@ export default function EligibilityModal({
                 <div style={s.stateGrid}>
                   {states.map(l => (
                     <button
-                      key={l.state}
+                      key={`${l.state}-${l.customerLocationId}`}
                       onClick={() => {
                         setForm(p => ({ ...p, state: l.state, locationId: l.customerLocationId }))
                         setError("")
-                        // Auto-advance on tap
                         setTimeout(() => setStep(2), 120)
                       }}
                       style={{
@@ -306,7 +426,7 @@ export default function EligibilityModal({
             </div>
           )}
 
-          {/* STEP 3 — Pregnancy (female only) — auto-advance on "None of the above", block others */}
+          {/* STEP 3 — Pregnancy (female only) */}
           {!blocked && step === 3 && form.sex === "female" && (
             <div style={s.stepWrap}>
               <h2 style={s.question}>Are you currently pregnant, breastfeeding, or planning to become pregnant?</h2>
@@ -329,7 +449,7 @@ export default function EligibilityModal({
             </div>
           )}
 
-          {/* Medical History — No auto-advances, Yes shows textarea */}
+          {/* Medical History */}
           {!blocked && step === medicalStep && (
             <div style={s.stepWrap}>
               <h2 style={s.question}>Do you have any medical condition(s), a history of prior surgeries, or anything else you want to tell your doctor?</h2>
@@ -360,7 +480,7 @@ export default function EligibilityModal({
             </div>
           )}
 
-          {/* Allergies — No auto-advances, Yes shows textarea */}
+          {/* Allergies */}
           {!blocked && step === allergyStep && (
             <div style={s.stepWrap}>
               <h2 style={s.question}>Do you have any allergies?</h2>
@@ -392,7 +512,7 @@ export default function EligibilityModal({
             </div>
           )}
 
-          {/* Medications — compact no-border list */}
+          {/* Medications */}
           {!blocked && step === medicationsStep && (
             <div style={s.stepWrap}>
               <h2 style={s.question}>Please select any medications you are currently taking for weight loss, in addition list all the medications you are taking under other:</h2>
@@ -429,7 +549,7 @@ export default function EligibilityModal({
             </div>
           )}
 
-          {/* BMI step */}
+          {/* BMI step — last step */}
           {!blocked && step === totalSteps && (
             <div style={s.stepWrap}>
               <h2 style={s.question}>Ok, let's talk about numbers.</h2>
@@ -465,18 +585,16 @@ export default function EligibilityModal({
                   onChange={e => setForm(p => ({ ...p, goalWeightLbs: Number(e.target.value) }))} />
               </div>
 
+              {/* BMI Chart — appears as soon as weight is entered */}
               {form.weightLbs > 0 && (
-                <div style={s.bmiBox}>
-                  <span style={s.bmiLabel}>Your BMI</span>
-                  <span style={s.bmiValue}>{calcBMI(form.heightFt, form.heightIn, form.weightLbs).toFixed(1)}</span>
-                </div>
+                <BMIChart ft={form.heightFt} inches={form.heightIn} lbs={form.weightLbs} goalLbs={form.goalWeightLbs} />
               )}
             </div>
           )}
 
         </div>
 
-        {/* Footer — hidden on step 1 (auto-advance) and pregnancy step (auto-advance) */}
+        {/* Footer */}
         {!blocked && step !== 1 && !(step === 3 && form.sex === "female") && (
           <div style={s.footer}>
             {error && <div style={s.errorMsg}>{error}</div>}
@@ -486,7 +604,7 @@ export default function EligibilityModal({
           </div>
         )}
 
-        {/* Full-screen loading overlay while adding to cart */}
+        {/* Loading overlay */}
         {submitting && (
           <div style={{
             position: "absolute", inset: 0, borderRadius: 16,
@@ -514,7 +632,6 @@ export default function EligibilityModal({
   )
 }
 
-// ── Styles ──────────────────────────────────────────────────────────────────
 const s: Record<string, React.CSSProperties> = {
   overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 },
   modal: { background: "#fff", borderRadius: 16, width: "100%", maxWidth: 520, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 80px rgba(0,0,0,0.2)" },
@@ -548,11 +665,7 @@ const s: Record<string, React.CSSProperties> = {
   btnPrimary: { width: "100%", padding: "14px", borderRadius: 16, border: "none", background: "var(--color-primary, #C9A84C)", color: "var(--button-text, #fff)", fontSize: 14, fontWeight: 700, cursor: "pointer" },
   errorMsg: { color: "#dc2626", fontSize: 13, marginBottom: 10, textAlign: "center" },
   loading: { textAlign: "center", color: "#9ca3af", padding: 24 },
-  warningBox: { background: "#fef9ec", border: "1px solid #f0d080", borderRadius: 10, padding: "14px 16px", fontSize: 13, color: "#92400e" },
   blockedBox: { textAlign: "center", padding: "16px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 },
   blockedIcon: { fontSize: 48 },
   blockedText: { fontSize: 14, color: "#374151", lineHeight: 1.6, maxWidth: 380, margin: 0 },
-  bmiBox: { display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10, padding: "12px 16px" },
-  bmiLabel: { fontSize: 13, color: "#6b7280", fontWeight: 600 },
-  bmiValue: { fontSize: 24, fontWeight: 800, color: "var(--color-primary, #C9A84C)" },
 }
