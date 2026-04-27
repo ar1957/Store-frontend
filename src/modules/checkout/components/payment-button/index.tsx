@@ -197,19 +197,33 @@ const StripePaymentButtonInner = ({
   const onPaymentCompleted = async (cartId: string) => {
     try {
       const result = await completeCartViaClinicEndpoint(cartId)
-      if (result?.type === "order" && result.order) {
+      if (result?.type === "order" && result.order?.id) {
         const countryCode = result.order.shipping_address?.country_code?.toLowerCase() || "us"
-        // Remove the cart cookie so next session starts fresh
         window.location.href = `/${countryCode}/order/${result.order.id}/confirmed`
         return
       }
-      // Fallback — shouldn't happen
+      // Backend returned type:"cart" or order.id missing — order may still have been created;
+      // retry once via the same endpoint to pick up the order_cart fallback
+      console.warn("[onPaymentCompleted] unexpected result:", JSON.stringify(result), "— retrying once")
+      await new Promise(r => setTimeout(r, 1500))
+      const retry = await completeCartViaClinicEndpoint(cartId).catch(() => null)
+      if (retry?.type === "order" && retry.order?.id) {
+        const countryCode = retry.order.shipping_address?.country_code?.toLowerCase() || "us"
+        window.location.href = `/${countryCode}/order/${retry.order.id}/confirmed`
+        return
+      }
       setErrorMessage("Order created but could not redirect. Please check your email.")
       setSubmitting(false)
     } catch (err: any) {
-      // 409 = already being completed
+      // 409 = already being completed — wait and retry
       if (err?.message?.includes("409") || err?.message?.includes("already")) {
         await new Promise(r => setTimeout(r, 2000))
+        const retry = await completeCartViaClinicEndpoint(cartId).catch(() => null)
+        if (retry?.type === "order" && retry.order?.id) {
+          const cc = retry.order.shipping_address?.country_code?.toLowerCase() || "us"
+          window.location.href = `/${cc}/order/${retry.order.id}/confirmed`
+          return
+        }
         const cc = cart.shipping_address?.country_code?.toLowerCase() || "us"
         window.location.href = `/${cc}/account/orders`
         return

@@ -13,8 +13,16 @@ export default function VirtualRoomRedirect({ orderId, metadata }: Props) {
   const countryCode = (params?.countryCode as string) || "us"
   const [virtualRoomUrl, setVirtualRoomUrl] = useState<string | null>(null)
   const [checking, setChecking] = useState(true)
+  const [isPendingPharmacy, setIsPendingPharmacy] = useState(false)
 
   useEffect(() => {
+    // Direct-to-pharmacy order — no GFE, no virtual room needed
+    if (metadata?.workflowStatus === "pending_pharmacy") {
+      setIsPendingPharmacy(true)
+      setChecking(false)
+      return
+    }
+
     if (metadata?.virtualRoomUrl) {
       setVirtualRoomUrl(metadata.virtualRoomUrl)
       setChecking(false)
@@ -36,6 +44,12 @@ export default function VirtualRoomRedirect({ orderId, metadata }: Props) {
 
         if (res.ok) {
           const data = await res.json()
+          // Stop polling immediately if order is direct-to-pharmacy
+          if (data.status === "pending_pharmacy") {
+            setIsPendingPharmacy(true)
+            setChecking(false)
+            return
+          }
           if (data.virtualRoomUrl) {
             setVirtualRoomUrl(data.virtualRoomUrl)
             setChecking(false)
@@ -56,6 +70,20 @@ export default function VirtualRoomRedirect({ orderId, metadata }: Props) {
 
     setTimeout(poll, 2000)
   }, [orderId, metadata])
+
+  if (isPendingPharmacy) {
+    return (
+      <div style={s.box}>
+        <div style={s.icon}>💊</div>
+        <h3 style={s.title}>Order confirmed!</h3>
+        <p style={s.text}>
+          Your order is being prepared by our pharmacy and will ship soon.
+          You can track your order on the{" "}
+          <a href={`/${countryCode}/order/status`} style={{ color: "var(--color-primary, #C9A84C)" }}>order status page</a>.
+        </p>
+      </div>
+    )
+  }
 
   if (!virtualRoomUrl && !checking) {
     return (
