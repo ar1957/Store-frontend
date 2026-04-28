@@ -67,6 +67,11 @@ export default function OrderStatusPage({ params: paramsPromise }: { params: Pro
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState("")
   const [lastChecked, setLastChecked] = useState<Date | null>(null)
+  const [hoursStatus, setHoursStatus] = useState<{
+    isOpen: boolean
+    formattedHours: string[]
+    timezone: string
+  } | null>(null)
 
   const fetchStatus = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true)
@@ -114,6 +119,14 @@ export default function OrderStatusPage({ params: paramsPromise }: { params: Pro
   }
 
   useEffect(() => { fetchStatus() }, [fetchStatus])
+
+  // Fetch operating hours once on mount (non-blocking)
+  useEffect(() => {
+    fetch("/api/operating-hours")
+      .then(r => r.json())
+      .then(d => setHoursStatus(d))
+      .catch(() => setHoursStatus({ isOpen: true, formattedHours: [], timezone: "Pacific Time (PT)" }))
+  }, [])
 
   // Auto-poll every 30s while pending provider (not needed for pending_pharmacy)
   useEffect(() => {
@@ -230,10 +243,32 @@ export default function OrderStatusPage({ params: paramsPromise }: { params: Pro
         {data.status === "pending_provider" && data.virtualRoomUrl && (
           <div style={s.infoBox}>
             <p style={s.infoTitle}>📋 Complete Your Consultation</p>
-            <p style={s.infoText}>Your virtual visit is ready. Click below to connect with a provider.</p>
-            <a href={data.virtualRoomUrl} target="_blank" rel="noopener noreferrer" style={s.btn}>
-              Join Virtual Visit →
-            </a>
+            {hoursStatus !== null && hoursStatus.isOpen === false ? (
+              <>
+                <div style={s.closedBox}>
+                  <span style={s.closedIcon}>🕐</span>
+                  <p style={s.closedTitle}>Providers are currently offline</p>
+                  <p style={s.closedText}>
+                    Please return during operating hours below to connect with a provider.
+                  </p>
+                  {hoursStatus.formattedHours.length > 0 && (
+                    <div style={s.hoursGrid}>
+                      {hoursStatus.formattedHours.map((line, i) => (
+                        <span key={i} style={s.hoursLine}>{line}</span>
+                      ))}
+                      <span style={s.hoursTimezone}>{hoursStatus.timezone}</span>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={s.infoText}>Your virtual visit is ready. Click below to connect with a provider.</p>
+                <a href={data.virtualRoomUrl} target="_blank" rel="noopener noreferrer" style={s.btn}>
+                  Join Virtual Visit →
+                </a>
+              </>
+            )}
           </div>
         )}
 
@@ -309,6 +344,13 @@ const s: Record<string, React.CSSProperties> = {
   refRow: { display: "flex", justifyContent: "space-between", paddingTop: 16, borderTop: "1px solid #f3f4f6" },
   refLabel: { fontSize: 11, color: "#9ca3af", textTransform: "uppercase" as const, fontWeight: 600 },
   refValue: { fontSize: 11, color: "#6b7280", fontFamily: "monospace" },
-  loading: { textAlign: "center", padding: 40, color: "#9ca3af" },
-  error: { textAlign: "center", padding: 40, color: "#dc2626" },
+  loading:       { textAlign: "center", padding: 40, color: "#9ca3af" },
+  error:         { textAlign: "center", padding: 40, color: "#dc2626" },
+  closedBox:     { background: "#fefce8", border: "1px solid #fde68a", borderRadius: 10, padding: "16px", textAlign: "center" },
+  closedIcon:    { fontSize: 24, display: "block", marginBottom: 6 },
+  closedTitle:   { fontSize: 13, fontWeight: 700, color: "#92400e", margin: "0 0 4px" },
+  closedText:    { fontSize: 13, color: "#78350f", margin: "0 0 12px", lineHeight: 1.6 },
+  hoursGrid:     { display: "flex", flexDirection: "column", gap: 3, alignItems: "center" },
+  hoursLine:     { fontSize: 13, fontWeight: 600, color: "#374151" },
+  hoursTimezone: { fontSize: 11, color: "#9ca3af", marginTop: 4 },
 }
