@@ -8,7 +8,7 @@
  * Each result links to the full status page for that order.
  */
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 
@@ -47,6 +47,18 @@ export default function OrderLookupPage() {
   const [connectingId, setConnectingId] = useState<string | null>(null)
   const [roomUrls, setRoomUrls] = useState<Record<string, string>>({})
   const [connectMsg, setConnectMsg] = useState<Record<string, string>>({})
+  const [hoursStatus, setHoursStatus] = useState<{
+    isOpen: boolean
+    formattedHours: string[]
+    timezone: string
+  } | null>(null)
+
+  useEffect(() => {
+    fetch("/api/operating-hours")
+      .then(r => r.json())
+      .then(d => setHoursStatus(d))
+      .catch(() => setHoursStatus({ isOpen: true, formattedHours: [], timezone: "Pacific Time (PT)" }))
+  }, [])
 
   const handleSearch = async () => {
     if (!input.trim()) return
@@ -188,7 +200,11 @@ export default function OrderLookupPage() {
                         Placed {order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "—"}
                       </div>
                     </div>
-                    {order.status === "pending_provider" ? (
+                    {order.status === "pending_provider" && hoursStatus !== null && hoursStatus.isOpen === false ? (
+                      <span style={{ ...s.badge, background: "#fef3c7", color: "#92400e" }}>
+                        🕐 Providers Offline
+                      </span>
+                    ) : order.status === "pending_provider" ? (
                       <button
                         onClick={() => handleConnect(order)}
                         disabled={connectingId === order.gfeId}
@@ -201,6 +217,19 @@ export default function OrderLookupPage() {
                       </span>
                     )}
                   </div>
+
+                  {order.status === "pending_provider" && hoursStatus?.isOpen === false && (
+                    <div style={s.closedBox}>
+                      <p style={s.closedTitle}>Our providers are not available right now.</p>
+                      <p style={s.closedText}>Please return during operating hours to connect:</p>
+                      {hoursStatus.formattedHours.map((line, i) => (
+                        <div key={i} style={s.hoursLine}>{line}</div>
+                      ))}
+                      {hoursStatus.formattedHours.length > 0 && (
+                        <div style={s.hoursTimezone}>{hoursStatus.timezone}</div>
+                      )}
+                    </div>
+                  )}
 
                   {order.providerName && (
                     <div style={s.detail}>Provider: <strong>{order.providerName}</strong></div>
@@ -288,5 +317,10 @@ const s: Record<string, React.CSSProperties> = {
   emptyBox: { background: "#fff", borderRadius: 14, padding: 32, textAlign: "center", color: "#374151", fontSize: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" },
   pharmacyBox: { display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" as const },
   pharmacyId: { fontSize: 12, color: "#374151" },
-  pharmacyBadge: { fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46", borderRadius: 20, padding: "2px 10px" },
+  pharmacyBadge:  { fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46", borderRadius: 20, padding: "2px 10px" },
+  closedBox:      { background: "#fefce8", border: "1px solid #fde68a", borderRadius: 10, padding: "12px 14px", marginBottom: 10 },
+  closedTitle:    { fontSize: 13, fontWeight: 700, color: "#92400e", margin: "0 0 2px" },
+  closedText:     { fontSize: 12, color: "#78350f", margin: "0 0 8px" },
+  hoursLine:      { fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 2 },
+  hoursTimezone:  { fontSize: 11, color: "#9ca3af", marginTop: 4 },
 }
