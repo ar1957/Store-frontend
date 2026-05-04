@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server"
 
 const BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
 
+// In-memory cache for tenant API keys — avoids hitting the backend on every request
+// TTL: 60 seconds. Edge-safe (no external dependencies).
+const tenantCache = new Map<string, { apiKey: string; expiresAt: number }>()
+const CACHE_TTL_MS = 60_000
+
 export async function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers)
 
-  // Behind AWS EB + nginx, the original domain (shop.spaderx.com) is forwarded
-  // as X-Forwarded-Host by our nginx config (.platform/nginx/conf.d/elasticbeanstalk/host-header.conf)
-  // Locally, host header works directly.
   const host =
     request.headers.get("x-forwarded-host") ||
     request.headers.get("host") ||
@@ -20,20 +22,27 @@ export async function middleware(request: NextRequest) {
 
   console.log("[Middleware]", request.method, request.nextUrl.pathname, "host:", host)
 
-  try {
-    const res = await fetch(`${BACKEND_URL}/store/clinics/tenant-config`, {
-      headers: {
-        "x-forwarded-host": host,
-        "x-publishable-api-key": process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || "",
-      },
-      cache: "no-store",
-    })
-    const data = await res.json()
-    if (data?.tenant?.apiKey) {
-      tenantApiKey = data.tenant.apiKey
+  // Check cache first
+  const cached = tenantCache.get(host)
+  if (cached && Date.now() < cached.expiresAt) {
+    tenantApiKey = cached.apiKey
+  } else {
+    try {
+      const res = await fetch(`${BACKEND_URL}/store/clinics/tenant-config`, {
+        headers: {
+          "x-forwarded-host": host,
+          "x-publishable-api-key": process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || "",
+        },
+        next: { revalidate: 60 }, // Next.js cache for 60s
+      })
+      const data = await res.json()
+      if (data?.tenant?.apiKey) {
+        tenantApiKey = data.tenant.apiKey
+        tenantCache.set(host, { apiKey: tenantApiKey, expiresAt: Date.now() + CACHE_TTL_MS })
+      }
+    } catch (e) {
+      console.error("Middleware lookup failed:", e)
     }
-  } catch (e) {
-    console.error("Middleware lookup failed:", e)
   }
 
   if (tenantApiKey) {

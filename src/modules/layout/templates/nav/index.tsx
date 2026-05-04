@@ -3,6 +3,7 @@ import CartButton from "@modules/layout/components/cart-button"
 import { MagnifyingGlass } from "@medusajs/icons"
 import NavDropdown from "./nav-dropdown"
 import MobileMenu from "./mobile-menu"
+import LanguageToggle from "./language-toggle"
 
 type NavLink = { label: string; url: string; open_new_tab?: boolean; children?: NavLink[] }
 
@@ -11,9 +12,10 @@ type NavProps = {
   getStartedUrl?: string | null
   navLinks?: NavLink[]
   clinicName?: string
+  isTranslationAllowed?: boolean
 }
 
-export default function Nav({ logoUrl, getStartedUrl, navLinks, clinicName }: NavProps) {
+export default function Nav({ logoUrl, getStartedUrl, navLinks, clinicName, isTranslationAllowed }: NavProps) {
   const links = navLinks && navLinks.length > 0 ? navLinks : []
   const startUrl = getStartedUrl || "/store"
   const startIsExternal = startUrl.startsWith("http://") || startUrl.startsWith("https://")
@@ -49,6 +51,7 @@ export default function Nav({ logoUrl, getStartedUrl, navLinks, clinicName }: Na
 
         {/* Actions */}
         <div className="flex items-center gap-x-3 sm:gap-x-6">
+          {isTranslationAllowed && <LanguageToggle />}
           <button className="hidden lg:block text-black hover:opacity-70 transition-opacity">
             <MagnifyingGlass />
           </button>
