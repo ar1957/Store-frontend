@@ -30,6 +30,7 @@ type UiConfig = {
   social_links?: SocialLink[]
   certification_image_url?: string | null
   brand_color?: string | null
+  is_translation_allowed?: boolean
 } | null
 
 /** Returns #111111 or #ffffff depending on which has better contrast against the given hex color */
@@ -60,7 +61,7 @@ async function fetchUiConfig(host: string): Promise<UiConfig> {
         "x-publishable-api-key": publishableKey,
         "content-type": "application/json",
       },
-      cache: "no-store",
+      next: { revalidate: 60 }, // cache for 60 seconds
     })
 
     if (!res.ok) {
@@ -103,6 +104,7 @@ export default async function PageLayout(props: { children: React.ReactNode }) {
   const uiConfig = await fetchUiConfig(host)
   const brandColor = uiConfig?.brand_color || "#111111"
   const brandTextColor = getContrastColor(brandColor)
+  const isTranslationAllowed = uiConfig?.is_translation_allowed === true
 
   return (
     <>
@@ -135,15 +137,36 @@ export default async function PageLayout(props: { children: React.ReactNode }) {
             window.__TENANT_API_KEY__ = ${JSON.stringify(tenantApiKey)};
             window.__TENANT_DOMAIN__ = ${JSON.stringify(tenantDomain)};
             window.__GOOGLE_PLACES_KEY__ = ${JSON.stringify(process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY || "")};
+            window.__TRANSLATION_ALLOWED__ = ${JSON.stringify(isTranslationAllowed)};
           `,
         }}
       />
+      {isTranslationAllowed && (
+        <>
+          {/* Google Translate element — hidden, controlled by our EN/ES button */}
+          <div id="google_translate_element" style={{ display: "none" }} />
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                function googleTranslateElementInit() {
+                  new google.translate.TranslateElement(
+                    { pageLanguage: 'en', includedLanguages: 'es', autoDisplay: false },
+                    'google_translate_element'
+                  );
+                }
+              `,
+            }}
+          />
+          <script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" async />
+        </>
+      )}
       <div data-layout-nav>
         <Nav
           logoUrl={uiConfig?.logo_url}
           getStartedUrl={uiConfig?.get_started_url}
           navLinks={uiConfig?.nav_links}
           clinicName={tenantDomain || host}
+          isTranslationAllowed={isTranslationAllowed}
         />
       </div>
       {/* Cart transfer banner suppressed — transfer failures are non-critical
