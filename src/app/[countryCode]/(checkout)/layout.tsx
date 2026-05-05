@@ -1,4 +1,5 @@
 import { headers } from "next/headers"
+import Script from "next/script"
 import Nav from "@modules/layout/templates/nav"
 import Footer from "@modules/layout/templates/footer"
 
@@ -66,6 +67,10 @@ export default async function CheckoutLayout({
 
   return (
     <div className="w-full bg-white relative small:min-h-screen">
+      <Script
+        src={`https://maps.googleapis.com/maps/api/js?libraries=places&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`}
+        strategy="beforeInteractive"
+      />
       <style dangerouslySetInnerHTML={{
         __html: `
           :root {
