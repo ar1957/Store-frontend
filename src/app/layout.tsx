@@ -1,5 +1,6 @@
 import { getBaseURL } from "@lib/util/env"
 import { Metadata } from "next"
+import Script from "next/script"
 import "styles/globals.css"
 import { getTenantFromHeaders } from "@hooks/useTenant"
 
@@ -43,6 +44,10 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
         `}</style>
       </head>
       <body>
+        <Script
+          src={`https://maps.googleapis.com/maps/api/js?libraries=places&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`}
+          strategy="beforeInteractive"
+        />
         <main className="relative">{props.children}</main>
       </body>
     </html>
