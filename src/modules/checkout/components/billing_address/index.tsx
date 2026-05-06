@@ -38,7 +38,10 @@ const BillingAddress = ({
     "billing_address.phone": cart?.billing_address?.phone || "",
   })
 
+  const googleKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY
+
   const { ref: placesRef } = usePlacesWidget({
+    apiKey: googleKey || undefined,
     onPlaceSelected: (place: any) => {
       if (!place.address_components) return
       let num = "", route = "", city = "", state = "", zip = ""

@@ -154,6 +154,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
       .then((freshCart) => { if (freshCart) setLiveCart(freshCart) })
       .catch(() => {})
       .finally(() => setPaymentLoading(false))
+    return () => { paymentInitialized.current = false }
   }, [])
 
   const handlePaymentMethod = async (method: string) => {
