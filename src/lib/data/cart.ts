@@ -272,27 +272,48 @@ export async function initiatePaymentSession(
     .catch(medusaError)
 }
 
+function mapPromoError(apiMessage: string): string {
+  const lower = apiMessage.toLowerCase()
+  if (lower.includes("not found") || lower.includes("does not exist") || lower.includes("invalid code")) {
+    return "Invalid promotion code. Please check and try again."
+  }
+  if (lower.includes("expir")) {
+    return "This promotion code has expired."
+  }
+  if (lower.includes("usage limit") || lower.includes("max uses") || lower.includes("already been used")) {
+    return "This promotion code has reached its usage limit."
+  }
+  if (lower.includes("not active") || lower.includes("inactive")) {
+    return "This promotion code is not currently active."
+  }
+  return "This promotion code cannot be applied to your cart."
+}
+
 export async function applyPromotions(codes: string[]) {
   const cartId = await getCartId()
 
   if (!cartId) {
-    throw new Error("No existing cart found")
+    return { error: "No existing cart found" }
   }
 
   const headers = {
     ...(await getAuthHeaders()),
   }
 
-  return sdk.store.cart
-    .update(cartId, { promo_codes: codes }, {}, headers)
-    .then(async () => {
-      const cartCacheTag = await getCacheTag("carts")
-      revalidateTag(cartCacheTag)
+  try {
+    await sdk.store.cart
+      .update(cartId, { promo_codes: codes }, {}, headers)
+      .then(async () => {
+        const cartCacheTag = await getCacheTag("carts")
+        revalidateTag(cartCacheTag)
 
-      const fulfillmentCacheTag = await getCacheTag("fulfillment")
-      revalidateTag(fulfillmentCacheTag)
-    })
-    .catch(medusaError)
+        const fulfillmentCacheTag = await getCacheTag("fulfillment")
+        revalidateTag(fulfillmentCacheTag)
+      })
+      .catch(medusaError)
+  } catch (err: any) {
+    return { error: mapPromoError(err.message ?? "") }
+  }
 }
 
 export async function applyGiftCard(code: string) {

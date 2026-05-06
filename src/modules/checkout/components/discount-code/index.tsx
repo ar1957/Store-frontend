@@ -34,7 +34,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
   const addPromotionCode = async (formData: FormData) => {
     setErrorMessage("")
 
-    const code = formData.get("code")
+    const code = formData.get("code")?.toString().toUpperCase()
     if (!code) {
       return
     }
@@ -44,10 +44,9 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
       .map((p) => p.code!)
     codes.push(code.toString())
 
-    try {
-      await applyPromotions(codes)
-    } catch (e: any) {
-      setErrorMessage(e.message)
+    const result = await applyPromotions(codes)
+    if (result?.error) {
+      setErrorMessage(result.error)
     }
 
     if (input) {
@@ -84,6 +83,11 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
                   type="text"
                   autoFocus={false}
                   data-testid="discount-input"
+                  onInput={(e) => {
+                    const el = e.target as HTMLInputElement
+                    el.value = el.value.toUpperCase()
+                  }}
+                  style={{ textTransform: "uppercase" }}
                 />
                 <SubmitButton
                   variant="secondary"

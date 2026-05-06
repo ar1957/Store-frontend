@@ -38,7 +38,7 @@ const BillingAddress = ({
     "billing_address.phone": cart?.billing_address?.phone || "",
   })
 
-  const googleKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY || (typeof window !== "undefined" ? ((window as any).__GOOGLE_PLACES_KEY__ || "") : "")
+  const googleKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY
 
   const { ref: placesRef } = usePlacesWidget({
     apiKey: googleKey || undefined,

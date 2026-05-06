@@ -74,7 +74,7 @@ const ShippingAddress = ({
   const [zipValidating, setZipValidating] = useState(false)
   const [eligibilityState, setEligibilityState] = useState<string | null>(null)
 
-  const googleKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY || (typeof window !== "undefined" ? ((window as any).__GOOGLE_PLACES_KEY__ || "") : "")
+  const googleKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY
 
   const { ref: placesRef } = usePlacesWidget({
     apiKey: googleKey || undefined,
