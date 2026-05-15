@@ -186,6 +186,26 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
   const [showEligibilityModal, setShowEligibilityModal] = useState(false)
   const [eligibilitySaving, setEligibilitySaving] = useState(false)
 
+  // ── Location selection ─────────────────────────────────────────────
+  const [locations, setLocations] = useState<any[]>([])
+  const [selectedLocation, setSelectedLocation] = useState<string>("")
+  const [locationSaving, setLocationSaving] = useState(false)
+
+  // Fetch clinic locations for referral tracking
+  useEffect(() => {
+    const fetchLocations = async () => {
+      try {
+        const res = await fetch("/api/clinic-locations")
+        const data = await res.json()
+        setLocations(data.locations || [])
+        // Restore from cart metadata if already selected
+        const meta = (liveCart as any).metadata as Record<string, any> | null
+        if (meta?.location_id) setSelectedLocation(meta.location_id)
+      } catch { /* silent */ }
+    }
+    fetchLocations()
+  }, [])
+
   useEffect(() => {
     const check = async () => {
       const domain = typeof window !== "undefined"
@@ -262,6 +282,22 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
     }
   }
 
+  const handleLocationChange = async (locationId: string) => {
+    setSelectedLocation(locationId)
+    if (!locationId) return
+    const loc = locations.find((l: any) => l.id === locationId)
+    if (!loc) return
+    setLocationSaving(true)
+    try {
+      await fetch("/api/cart-location", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cartId: liveCart.id, locationId: loc.id, locationName: loc.name }),
+      })
+    } catch { /* silent */ }
+    setLocationSaving(false)
+  }
+
   const cartAny = liveCart as any
   const paidByGiftcard = cartAny?.gift_cards?.length > 0 && cartAny?.total === 0
   const zeroTotal = (cartAny?.total ?? 1) === 0
@@ -292,7 +328,8 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
     (noPaymentNeeded || !isStripeLike(selectedPaymentMethod) || cardComplete) &&
     consentTerms &&
     consentPrivacy &&
-    (!cartRequiresEligibility || eligibilityVerified)
+    (!cartRequiresEligibility || eligibilityVerified) &&
+    (locations.length === 0 || !!selectedLocation)
 
   return (
     <>
@@ -319,6 +356,30 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
         </form>
         <hr className="mt-8" />
       </section>
+
+      {/* ── SECTION: Referral Location ── */}
+      {locations.length > 0 && (
+        <section className="bg-white">
+          <h2 className="text-3xl-regular font-semibold mb-2">Referral Location</h2>
+          <p className="text-ui-fg-muted text-sm mb-6">Which location referred you to us?</p>
+          <div className="relative">
+            <select
+              value={selectedLocation}
+              onChange={(e) => handleLocationChange(e.target.value)}
+              disabled={locationSaving}
+              className="w-full rounded-md border border-ui-border-base bg-ui-bg-field px-4 py-3 text-base text-ui-fg-base focus:border-ui-border-interactive focus:outline-none appearance-none"
+            >
+              <option value="">Select a location *</option>
+              {locations.map((loc: any) => (
+                <option key={loc.id} value={loc.id}>
+                  {loc.name}{loc.city && loc.state ? ` — ${loc.city}, ${loc.state}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <hr className="mt-8" />
+        </section>
+      )}
 
       {/* ── SECTION 2: Shipping Method ── */}
       <section className="bg-white">
@@ -472,6 +533,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
                   </button>
                 </li>
               )}
+              {locations.length > 0 && !selectedLocation && <li>Select referral location</li>}
             </ul>
           </div>
         )}
