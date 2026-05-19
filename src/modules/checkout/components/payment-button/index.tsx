@@ -260,7 +260,7 @@ const StripePaymentButtonInner = ({
       elements,
       clientSecret,
       confirmParams: {
-        return_url: `${window.location.origin}${window.location.pathname}?payment_return=1`,
+        return_url: `${window.location.origin}/${window.location.pathname.split("/")[1]}/payment-return?cart_id=${cart.id}`,
         payment_method_data: {
           billing_details: {
             name: `${cart.billing_address?.first_name ?? ""} ${cart.billing_address?.last_name ?? ""}`,
