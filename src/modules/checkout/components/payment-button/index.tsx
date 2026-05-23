@@ -338,7 +338,13 @@ const ZeroTotalPaymentButton = ({
     if (submitting) return
     setSubmitting(true)
     if (onBeforeSubmit) {
-      try { await onBeforeSubmit() } catch { /* non-fatal */ }
+      try {
+        await onBeforeSubmit()
+      } catch (err: any) {
+        setErrorMessage(err.message || "Please complete your shipping address before placing the order.")
+        setSubmitting(false)
+        return
+      }
     }
     try {
       const result = await completeCartViaClinicEndpoint(cart.id)

@@ -52,6 +52,8 @@ export default function SinglePageCheckout({
     first_name: cart.shipping_address?.first_name || "",
     last_name: cart.shipping_address?.last_name || "",
     address_1: cart.shipping_address?.address_1 || "",
+    city: cart.shipping_address?.city || "",
+    postal_code: cart.shipping_address?.postal_code || "",
     email: cart.email || "",
   })
 
@@ -65,7 +67,10 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
 
   const addressComplete = !!(
     (cart.shipping_address?.first_name || addressFields.first_name) &&
+    (cart.shipping_address?.last_name || addressFields.last_name) &&
     (cart.shipping_address?.address_1 || addressFields.address_1) &&
+    (cart.shipping_address?.city || addressFields.city) &&
+    (cart.shipping_address?.postal_code || addressFields.postal_code) &&
     (cart.email || addressFields.email)
   )
 
@@ -546,19 +551,15 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
               selectedPaymentMethod={selectedPaymentMethod}
               data-testid="submit-order-button"
               onBeforeSubmit={async () => {
-                try {
-                  const formData = new FormData(addressFormRef.current!)
-                  if (sameAsBilling) {
-                    formData.set("same_as_billing", "on")
-                  } else {
-                    Object.entries(billingFormData).forEach(([key, value]) => {
-                      formData.set(key, value)
-                    })
-                  }
-                  await saveShippingAddress(formData)
-                } catch {
-                  // non-fatal
+                const formData = new FormData(addressFormRef.current!)
+                if (sameAsBilling) {
+                  formData.set("same_as_billing", "on")
+                } else {
+                  Object.entries(billingFormData).forEach(([key, value]) => {
+                    formData.set(key, value)
+                  })
                 }
+                await saveShippingAddress(formData)
               }}
             />
           ) : (
