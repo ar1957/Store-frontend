@@ -541,15 +541,19 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
               selectedPaymentMethod={selectedPaymentMethod}
               data-testid="submit-order-button"
               onBeforeSubmit={async () => {
-                const formData = new FormData(addressFormRef.current!)
-                if (sameAsBilling) {
-                  formData.set("same_as_billing", "on")
-                } else {
-                  Object.entries(billingFormData).forEach(([key, value]) => {
-                    formData.set(key, value)
-                  })
+                try {
+                  const formData = new FormData(addressFormRef.current!)
+                  if (sameAsBilling) {
+                    formData.set("same_as_billing", "on")
+                  } else {
+                    Object.entries(billingFormData).forEach(([key, value]) => {
+                      formData.set(key, value)
+                    })
+                  }
+                  await saveShippingAddress(formData)
+                } catch {
+                  // non-fatal
                 }
-                await saveShippingAddress(formData)
               }}
             />
           ) : (
