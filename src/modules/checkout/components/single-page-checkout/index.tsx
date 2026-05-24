@@ -21,7 +21,7 @@ import ShippingAddress from "@modules/checkout/components/shipping-address"
 import BillingAddress from "@modules/checkout/components/billing_address"
 import compareAddresses from "@lib/util/compare-addresses"
 import EligibilityModal from "@modules/products/components/eligibility-modal"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { useStripe } from "@stripe/react-stripe-js"
 
@@ -48,25 +48,20 @@ export default function SinglePageCheckout({
       : true
   )
 
-  const [addressFields, setAddressFields] = useState({
-    first_name: cart.shipping_address?.first_name || "",
-    last_name: cart.shipping_address?.last_name || "",
-    address_1: cart.shipping_address?.address_1 || "",
-    email: cart.email || "",
-  })
+  const [shippingFormData, setShippingFormData] = useState<Record<string, any>>({})
 
 const [billingFormData, setBillingFormData] = useState<Record<string, string>>({})
 const handleBillingFormDataChange = (data: Record<string, string>) => {
   setBillingFormData(data)
 }
-  const handleAddressFieldChange = useCallback((field: string, value: string) => {
-    setAddressFields(p => ({ ...p, [field]: value }))
-  }, [])
 
   const addressComplete = !!(
-    (cart.shipping_address?.first_name || addressFields.first_name) &&
-    (cart.shipping_address?.address_1 || addressFields.address_1) &&
-    (cart.email || addressFields.email)
+    (cart.shipping_address?.first_name || shippingFormData["shipping_address.first_name"]) &&
+    (cart.shipping_address?.last_name || shippingFormData["shipping_address.last_name"]) &&
+    (cart.shipping_address?.address_1 || shippingFormData["shipping_address.address_1"]) &&
+    (cart.shipping_address?.city || shippingFormData["shipping_address.city"]) &&
+    (cart.shipping_address?.postal_code || shippingFormData["shipping_address.postal_code"]) &&
+    (cart.email || shippingFormData["email"])
   )
 
   // ── Shipping ───────────────────────────────────────────────────────
@@ -345,7 +340,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
             checked={sameAsBilling}
             onChange={toggleSameAsBilling}
             cart={cart}
-            onFieldChange={handleAddressFieldChange}
+            onFormDataChange={setShippingFormData}
           />
           {!sameAsBilling && (
             <div className="mt-8">
