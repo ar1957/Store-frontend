@@ -8,6 +8,9 @@ import React, { useContext, useState } from "react"
 import ErrorMessage from "../error-message"
 import { StripeContext, StripeContextValue } from "../payment-wrapper/stripe-wrapper"
 import PayPalPaymentButton from "./paypal-payment-button"
+import AuthorizeNetPaymentButton from "./authorizenet-payment-button"
+import { useAuthorizeNet } from "../payment-wrapper/authorizenet-wrapper"
+import { AuthorizeNetCardData } from "../payment-container"
 
 
 type PaymentButtonProps = {
@@ -17,6 +20,7 @@ type PaymentButtonProps = {
   noPaymentNeeded?: boolean
   onBeforeSubmit?: () => Promise<void>
   selectedPaymentMethod?: string
+  authorizeNetCardData?: AuthorizeNetCardData
 }
 
 // ── Processing overlay shown while order is being placed ──────────────────
@@ -76,8 +80,10 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
   noPaymentNeeded = false,
   onBeforeSubmit,
   selectedPaymentMethod,
+  authorizeNetCardData,
 }) => {
   const notReady = !cart || disabled
+  const authorizeNetConfig = useAuthorizeNet()
 
   if (noPaymentNeeded) {
     return (
@@ -95,6 +101,18 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
   )
 
   const activeProvider = selectedPaymentMethod || paymentSession?.provider_id || ""
+
+  if (authorizeNetConfig) {
+    return (
+      <AuthorizeNetPaymentButton
+        notReady={notReady}
+        cart={cart}
+        data-testid={dataTestId}
+        onBeforeSubmit={onBeforeSubmit}
+        cardData={authorizeNetCardData || { cardNumber: "", month: "", year: "", cardCode: "" }}
+      />
+    )
+  }
 
   if (isStripeLike(activeProvider)) {
     return (

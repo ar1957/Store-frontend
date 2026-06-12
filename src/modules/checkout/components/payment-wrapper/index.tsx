@@ -4,6 +4,7 @@ import { loadStripe } from "@stripe/stripe-js"
 import React, { useEffect, useState } from "react"
 import StripeWrapper from "./stripe-wrapper"
 import PayPalWrapper from "./paypal-wrapper"
+import AuthorizeNetWrapper, { AuthorizeNetConfig } from "./authorizenet-wrapper"
 import { HttpTypes } from "@medusajs/types"
 import { isPaypal } from "@lib/constants"
 
@@ -18,6 +19,9 @@ interface TenantPaymentConfig {
   paypalClientId: string | null
   paypalMode: string
   paymentProvider: string
+  authorizeNetApiLoginId: string | null
+  authorizeNetPublicClientKey: string | null
+  authorizeNetMode: string
 }
 
 const piStorageKey = (cartId: string) => `mhc_pi_${cartId}`
@@ -26,6 +30,7 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
   const [stripePromise, setStripePromise] = useState<Promise<any> | null>(null)
   const [stripeKey, setStripeKey] = useState<string | undefined>(undefined)
   const [paypalClientId, setPaypalClientId] = useState<string | null>(null)
+  const [authorizeNetConfig, setAuthorizeNetConfig] = useState<AuthorizeNetConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [clinicClientSecret, setClinicClientSecret] = useState<string | null>(null)
   const [clinicPaymentIntentId, setClinicPaymentIntentId] = useState<string | null>(null)
@@ -56,6 +61,19 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
         if (!res.ok) return
 
         const data: TenantPaymentConfig = await res.json()
+
+        // Authorize.net — skip Stripe entirely, set up authorizenet config
+        if (data.paymentProvider === "authorizenet") {
+          if (data.authorizeNetApiLoginId && data.authorizeNetPublicClientKey) {
+            setAuthorizeNetConfig({
+              apiLoginId: data.authorizeNetApiLoginId,
+              publicClientKey: data.authorizeNetPublicClientKey,
+              mode: (data.authorizeNetMode as "sandbox" | "production") || "sandbox",
+            })
+          }
+          return
+        }
+
         if (!data.stripeKey || data.paymentProvider === "paypal") return
 
         setStripeKey(data.stripeKey)
@@ -132,6 +150,14 @@ const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children, noPayme
           <p className="text-xs text-gray-500 font-medium">Loading Secure Payment...</p>
         </div>
       </div>
+    )
+  }
+
+  if (authorizeNetConfig) {
+    return (
+      <AuthorizeNetWrapper config={authorizeNetConfig}>
+        {children}
+      </AuthorizeNetWrapper>
     )
   }
 
