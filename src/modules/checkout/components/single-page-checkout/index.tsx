@@ -15,7 +15,7 @@ import { clx, useToggleState } from "@medusajs/ui"
 import ErrorMessage from "@modules/checkout/components/error-message"
 import PaymentButton from "@modules/checkout/components/payment-button"
 import PaymentWrapper from "@modules/checkout/components/payment-wrapper"
-import { StripeCardContainer } from "@modules/checkout/components/payment-container"
+import { StripeCardContainer, AuthorizeNetCardContainer, AuthorizeNetCardData } from "@modules/checkout/components/payment-container"
 import MedusaRadio from "@modules/common/components/radio"
 import ShippingAddress from "@modules/checkout/components/shipping-address"
 import BillingAddress from "@modules/checkout/components/billing_address"
@@ -30,6 +30,7 @@ type Props = {
   customer: HttpTypes.StoreCustomer | null
   availableShippingMethods: HttpTypes.StoreCartShippingOption[]
   availablePaymentMethods: any[]
+  paymentProvider?: string
 }
 
 export default function SinglePageCheckout({
@@ -37,7 +38,9 @@ export default function SinglePageCheckout({
   customer,
   availableShippingMethods,
   availablePaymentMethods,
+  paymentProvider = "stripe",
 }: Props) {
+  const isAuthorizeNet = paymentProvider === "authorizenet"
 
   // ── Address ────────────────────────────────────────────────────────
   const addressFormRef = useRef<HTMLFormElement>(null)
@@ -131,6 +134,8 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
   const [cardComplete, setCardComplete] = useState(false)
   const [cardBrand, setCardBrand] = useState<string | null>(null)
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [authorizeNetCardData, setAuthorizeNetCardData] = useState<AuthorizeNetCardData>({ cardNumber: "", month: "", year: "", cardCode: "" })
+  const authorizeNetCardComplete = !!(authorizeNetCardData.cardNumber && authorizeNetCardData.month && authorizeNetCardData.year && authorizeNetCardData.cardCode)
 
   const paymentInitialized = useRef(false)
   useEffect(() => {
@@ -138,7 +143,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
     if (activeSessionIsValid) { paymentInitialized.current = true; return }
     // Don't init payment session if total is zero — no payment needed
     if (zeroTotal || paidByGiftcard) { paymentInitialized.current = true; return }
-    if (!selectedPaymentMethod || (!isStripeLike(selectedPaymentMethod) && !isPaypal(selectedPaymentMethod))) return
+    if (!selectedPaymentMethod || (!isStripeLike(selectedPaymentMethod) && !isPaypal(selectedPaymentMethod) && !isAuthorizeNet)) return
     paymentInitialized.current = true
     setPaymentLoading(true)
     initiatePaymentSession(liveCart, { provider_id: "pp_system_default" })
@@ -155,8 +160,8 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
   const handlePaymentMethod = async (method: string) => {
     setPaymentError(null)
     setSelectedPaymentMethod(method)
-    // Only initiate session for Stripe — PayPal creates its session on button click
-    if (isStripeLike(method)) {
+    // Initiate session for Stripe and Authorize.net — PayPal creates its session on button click
+    if (isStripeLike(method) || isAuthorizeNet) {
       setPaymentLoading(true)
       await initiatePaymentSession(liveCart, { provider_id: "pp_system_default" })
         .catch(err => { setPaymentError(err.message); return null })
@@ -319,8 +324,9 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
   const canPlaceOrder =
     addressComplete &&
     (liveCart.shipping_methods?.length ?? 0) > 0 &&
-    (noPaymentNeeded || activeSession || isPaypal(selectedPaymentMethod)) &&
-    (noPaymentNeeded || !isStripeLike(selectedPaymentMethod) || cardComplete) &&
+    (noPaymentNeeded || activeSession || isPaypal(selectedPaymentMethod) || isAuthorizeNet) &&
+    (noPaymentNeeded || !isStripeLike(selectedPaymentMethod) || cardComplete || isAuthorizeNet) &&
+    (noPaymentNeeded || !isAuthorizeNet || authorizeNetCardComplete) &&
     consentTerms &&
     consentPrivacy &&
     (!cartRequiresEligibility || eligibilityVerified) &&
@@ -440,7 +446,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
                 <RadioGroup value={selectedPaymentMethod} onChange={handlePaymentMethod}>
                   {availablePaymentMethods.map(method => (
                     <div key={method.id}>
-                      {isStripeLike(method.id) ? (
+                      {isStripeLike(method.id) && !isAuthorizeNet ? (
                         <StripeCardContainer
                           paymentProviderId={method.id}
                           selectedPaymentOptionId={selectedPaymentMethod}
@@ -448,6 +454,13 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
                           setCardBrand={setCardBrand}
                           setError={setPaymentError}
                           setCardComplete={setCardComplete}
+                        />
+                      ) : isAuthorizeNet && (isStripeLike(method.id) || method.id?.startsWith("pp_system_default")) ? (
+                        <AuthorizeNetCardContainer
+                          paymentProviderId={method.id}
+                          selectedPaymentOptionId={selectedPaymentMethod}
+                          paymentInfoMap={{ ...paymentInfoMap, [method.id]: { title: "Credit Card", icon: paymentInfoMap["pp_stripe_stripe"]?.icon ?? paymentInfoMap["pp_system_default"]?.icon } }}
+                          onCardDataChange={setAuthorizeNetCardData}
                         />
                       ) : (
                         <div
@@ -513,8 +526,9 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
             <ul className="list-disc list-inside space-y-1">
               {!addressComplete && <li>Shipping address</li>}
               {(liveCart.shipping_methods?.length ?? 0) === 0 && <li>Delivery method</li>}
-              {!paidByGiftcard && !activeSession && !zeroTotal && !isPaypal(selectedPaymentMethod) && <li>Payment details</li>}
-              {isStripeLike(selectedPaymentMethod) && !cardComplete && activeSession && !zeroTotal && !noPaymentNeeded && <li>Card details</li>}
+              {!paidByGiftcard && !activeSession && !zeroTotal && !isPaypal(selectedPaymentMethod) && !isAuthorizeNet && <li>Payment details</li>}
+              {isStripeLike(selectedPaymentMethod) && !isAuthorizeNet && !cardComplete && activeSession && !zeroTotal && !noPaymentNeeded && <li>Card details</li>}
+              {isAuthorizeNet && !authorizeNetCardComplete && !zeroTotal && !noPaymentNeeded && <li>Card details</li>}
               {!consentTerms && <li>Accept terms and conditions</li>}
               {!consentPrivacy && <li>Consent to privacy policy and telehealth terms</li>}
               {cartRequiresEligibility && !eligibilityVerified && (
@@ -534,11 +548,12 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
         )}
 
         <div className={!canPlaceOrder ? "opacity-50 pointer-events-none" : ""}>
-          {(activeSession || noPaymentNeeded || isPaypal(selectedPaymentMethod)) ? (
+          {(activeSession || noPaymentNeeded || isPaypal(selectedPaymentMethod) || isAuthorizeNet) ? (
             <PaymentButton
               cart={liveCart}
               noPaymentNeeded={noPaymentNeeded}
               selectedPaymentMethod={selectedPaymentMethod}
+              authorizeNetCardData={isAuthorizeNet ? authorizeNetCardData : undefined}
               data-testid="submit-order-button"
               onBeforeSubmit={async () => {
                 try {
