@@ -51,6 +51,10 @@ export const isManual = (providerId?: string) => {
   return providerId?.startsWith("pp_system_default")
 }
 
+export const isAuthorizenet = (paymentProvider?: string) => {
+  return paymentProvider === "authorizenet"
+}
+
 // Add currencies that don't need to be divided by 100
 export const noDivisionCurrencies = [
   "krw",

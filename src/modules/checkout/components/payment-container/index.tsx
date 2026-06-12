@@ -1,6 +1,6 @@
 import { Radio as RadioGroupOption } from "@headlessui/react"
 import { Text, clx } from "@medusajs/ui"
-import React, { useContext, type JSX } from "react"
+import React, { useContext, useState, type JSX } from "react"
 
 import Radio from "@modules/common/components/radio"
 
@@ -63,6 +63,101 @@ const PaymentContainer: React.FC<PaymentContainerProps> = ({
 }
 
 export default PaymentContainer
+
+export interface AuthorizeNetCardData {
+  cardNumber: string
+  month: string
+  year: string
+  cardCode: string
+}
+
+export const AuthorizeNetCardContainer = ({
+  paymentProviderId,
+  selectedPaymentOptionId,
+  paymentInfoMap,
+  disabled = false,
+  onCardDataChange,
+}: Omit<PaymentContainerProps, "children"> & {
+  onCardDataChange: (data: AuthorizeNetCardData) => void
+}) => {
+  const [card, setCard] = useState<AuthorizeNetCardData>({ cardNumber: "", month: "", year: "", cardCode: "" })
+
+  const update = (field: keyof AuthorizeNetCardData, value: string) => {
+    const next = { ...card, [field]: value }
+    setCard(next)
+    onCardDataChange(next)
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #e5e7eb",
+    borderRadius: 8,
+    fontSize: 14,
+    outline: "none",
+    background: "#fff",
+  }
+
+  return (
+    <PaymentContainer
+      paymentProviderId={paymentProviderId}
+      selectedPaymentOptionId={selectedPaymentOptionId}
+      paymentInfoMap={paymentInfoMap}
+      disabled={disabled}
+    >
+      {selectedPaymentOptionId === paymentProviderId && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+          <div>
+            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>Card number</label>
+            <input
+              style={inputStyle}
+              placeholder="1234 5678 9012 3456"
+              maxLength={19}
+              value={card.cardNumber}
+              onChange={e => {
+                const v = e.target.value.replace(/\D/g, "").slice(0, 16)
+                const formatted = v.match(/.{1,4}/g)?.join(" ") || v
+                update("cardNumber", formatted)
+              }}
+            />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>Month</label>
+              <input
+                style={inputStyle}
+                placeholder="MM"
+                maxLength={2}
+                value={card.month}
+                onChange={e => update("month", e.target.value.replace(/\D/g, "").slice(0, 2))}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>Year</label>
+              <input
+                style={inputStyle}
+                placeholder="YYYY"
+                maxLength={4}
+                value={card.year}
+                onChange={e => update("year", e.target.value.replace(/\D/g, "").slice(0, 4))}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>CVV</label>
+              <input
+                style={inputStyle}
+                placeholder="123"
+                maxLength={4}
+                value={card.cardCode}
+                onChange={e => update("cardCode", e.target.value.replace(/\D/g, "").slice(0, 4))}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </PaymentContainer>
+  )
+}
 
 export const StripeCardContainer = ({
   paymentProviderId,

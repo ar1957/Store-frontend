@@ -56,6 +56,7 @@ export default async function CheckoutForm({
   const filteredPaymentMethods = paymentMethods.filter((method: any) => {
     if (paymentProvider === "stripe") return isStripeLike(method.id) || method.id?.startsWith("pp_system_default")
     if (paymentProvider === "paypal") return isPaypal(method.id)
+    if (paymentProvider === "authorizenet") return isStripeLike(method.id) || method.id?.startsWith("pp_system_default")
     // "both" — show all
     return true
   })
@@ -66,6 +67,7 @@ export default async function CheckoutForm({
       customer={customer}
       availableShippingMethods={shippingMethods}
       availablePaymentMethods={filteredPaymentMethods}
+      paymentProvider={paymentProvider}
     />
   )
 }

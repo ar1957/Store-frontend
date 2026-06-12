@@ -31,6 +31,9 @@ export async function GET(request: NextRequest) {
       paypalClientId: tenant?.paypal_client_id || null,
       paypalMode: tenant?.paypal_mode || "sandbox",
       paymentProvider: tenant?.payment_provider || "stripe",
+      authorizeNetApiLoginId: tenant?.authorizenet_api_login_id || null,
+      authorizeNetPublicClientKey: tenant?.authorizenet_public_client_key || null,
+      authorizeNetMode: tenant?.authorizenet_mode || "sandbox",
     })
   } catch {
     return NextResponse.json({ stripeKey: null, paypalClientId: null, paymentProvider: "stripe" })
