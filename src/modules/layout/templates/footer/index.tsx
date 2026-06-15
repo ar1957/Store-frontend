@@ -71,13 +71,13 @@ export default async function Footer({
   const collections = await listCollections({ fields: "*products" })
     .then(r => r.collections)
     .catch(() => [])
-  const productCategories = await listCategories().catch(() => [])
+  const productCategories = await listCategories({ fields: "*category_children, *parent_category, *parent_category.parent_category, *products" }).catch(() => [])
 
   const links = footerLinks && footerLinks.length > 0 ? footerLinks : []
   const bLinks = bottomLinks && bottomLinks.length > 0 ? bottomLinks : []
   const socials = socialLinks && socialLinks.length > 0 ? socialLinks : []
 
-  const meaningfulCategories = productCategories.filter((c: any) => !c.parent_category)
+  const meaningfulCategories = productCategories.filter((c: any) => !c.parent_category && c.products && c.products.length > 0)
   const meaningfulCollections = collections || []
 
   return (
@@ -88,13 +88,11 @@ export default async function Footer({
         <div className="py-10 border-b border-ui-border-base text-center">
           <div className="max-w-4xl mx-auto px-4">
             <h3 className="text-gray-800 text-xs uppercase mb-3 tracking-widest font-bold">
-              IMPORTANT DISCLAIMER
+              IMPORTANT NOTICE
             </h3>
             <div className="flex flex-col gap-y-3 text-gray-500 text-xs leading-relaxed">
-              <p>These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease.</p>
-              <p>Individual results may vary. Always consult with a licensed healthcare provider before beginning any weight loss program or medication. This medication is compounded by a licensed pharmacy and is not FDA-approved. Side effects may occur. For full safety information, contraindications, and potential side effects, please review our <a href="/faq" className="text-gray-700 hover:underline">[FAQ page]</a>.</p>
-              <p>{clinicName || "Contour Wellness"} provides access to compounded medications for eligible patients. Compounded medications are not FDA-approved and may vary in quality, safety, and efficacy compared to FDA-approved drugs. A licensed medical provider will conduct a telehealth Good Faith Exam (GFE) to assess patient eligibility prior to issuing any prescription. Not all individuals will qualify, and results may differ from person to person.</p>
-              <p>Novo Nordisk Inc. and Eli Lilly and Company are the only U.S. manufacturers of FDA-approved semaglutide (Rybelsus®, Ozempic®, Wegovy®) and tirzepatide (Zepbound®, Mounjaro®), respectively. These manufacturers do not supply their medications for compounding purposes.</p>
+              <p>This website is a technology platform that connects patients with licensed healthcare providers and pharmacies. Medical evaluations, treatment decisions, and prescribing are performed solely by independent licensed healthcare providers.</p>
+              <p>Information on this website is for informational purposes only and is not medical advice. Eligibility for treatment is determined by a licensed healthcare provider, and individual results may vary.</p>
             </div>
           </div>
         </div>
