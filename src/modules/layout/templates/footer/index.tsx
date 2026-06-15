@@ -77,7 +77,10 @@ export default async function Footer({
   const bLinks = bottomLinks && bottomLinks.length > 0 ? bottomLinks : []
   const socials = socialLinks && socialLinks.length > 0 ? socialLinks : []
 
-  const meaningfulCategories = productCategories.filter((c: any) => !c.parent_category && c.products && c.products.length > 0)
+  const meaningfulCategories = productCategories.filter((c: any) =>
+    !c.parent_category &&
+    c.products?.some((p: any) => p.status === "published")
+  )
   const meaningfulCollections = collections || []
 
   return (
