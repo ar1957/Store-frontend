@@ -71,7 +71,36 @@ export default async function Footer({
   const collections = await listCollections({ fields: "*products" })
     .then(r => r.collections)
     .catch(() => [])
-  const productCategories = await listCategories({ fields: "*category_children, *parent_category, *parent_category.parent_category, *products" }).catch(() => [])
+  const productCategories = await listCategories().catch(() => [])
+
+  // Fetch products scoped to this clinic's sales channel to determine which
+  // categories actually have products. We use a direct fetch (not the SDK's
+  // product list which requires a region) and fall back to null on any error.
+  // When null, all root categories are shown (safe fallback).
+  let activeCategoryIds: Set<string> | null = null
+  try {
+    const BACKEND = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+    const { headers: nextHeaders } = await import("next/headers")
+    const h = await nextHeaders()
+    const tenantKey = h.get("x-tenant-api-key") || process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
+
+    if (tenantKey) {
+      const res = await fetch(
+        `${BACKEND}/store/products?fields=%2Acategories&limit=500`,
+        { headers: { "x-publishable-api-key": tenantKey }, cache: "no-store" }
+      )
+      if (res.ok) {
+        const data = await res.json()
+        activeCategoryIds = new Set<string>(
+          (data.products || []).flatMap((p: any) =>
+            (p.categories || []).map((c: any) => c.id as string)
+          )
+        )
+      }
+    }
+  } catch {
+    // If anything fails, activeCategoryIds stays null → show all root categories
+  }
 
   const links = footerLinks && footerLinks.length > 0 ? footerLinks : []
   const bLinks = bottomLinks && bottomLinks.length > 0 ? bottomLinks : []
@@ -79,7 +108,7 @@ export default async function Footer({
 
   const meaningfulCategories = productCategories.filter((c: any) =>
     !c.parent_category &&
-    c.products?.some((p: any) => p.status === "published")
+    (activeCategoryIds === null || activeCategoryIds.has(c.id))
   )
   const meaningfulCollections = collections || []
 
