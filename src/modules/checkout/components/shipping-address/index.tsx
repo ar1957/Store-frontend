@@ -62,6 +62,7 @@ const ShippingAddress = ({
     "shipping_address.first_name": cart?.shipping_address?.first_name || "",
     "shipping_address.last_name": cart?.shipping_address?.last_name || "",
     "shipping_address.address_1": cart?.shipping_address?.address_1 || "",
+    "shipping_address.address_2": cart?.shipping_address?.address_2 || "",
     "shipping_address.postal_code": cart?.shipping_address?.postal_code || "",
     "shipping_address.city": cart?.shipping_address?.city || "",
     "shipping_address.country_code": cart?.shipping_address?.country_code || "us",
@@ -168,6 +169,7 @@ const ShippingAddress = ({
       "shipping_address.first_name": address?.first_name || prev["shipping_address.first_name"] || "",
       "shipping_address.last_name": address?.last_name || prev["shipping_address.last_name"] || "",
       "shipping_address.address_1": address?.address_1 || prev["shipping_address.address_1"] || "",
+      "shipping_address.address_2": address?.address_2 || prev["shipping_address.address_2"] || "",
       "shipping_address.postal_code": prev["shipping_address.postal_code"] || "",
       "shipping_address.city": prev["shipping_address.city"] || "",
       "shipping_address.country_code": "us",
@@ -241,6 +243,9 @@ const ShippingAddress = ({
               Address<span className="text-rose-500">*</span>
             </label>
           </div>
+        </div>
+        <div className="col-span-2">
+          <Input label="Apartment, suite, unit, etc. (optional)" name="shipping_address.address_2" autoComplete="address-line2" value={formData["shipping_address.address_2"]} onChange={handleChange} data-testid="shipping-address-2-input" />
         </div>
         <Input label="City" name="shipping_address.city" autoComplete="address-level2" value={formData["shipping_address.city"]} onChange={handleChange} required data-testid="shipping-city-input" />
         <div className="flex flex-col">
