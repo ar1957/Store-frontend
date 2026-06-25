@@ -144,7 +144,7 @@ export default async function PageLayout(props: { children: React.ReactNode }) {
       {isTranslationAllowed && (
         <>
           {/* Google Translate element — hidden, controlled by our EN/ES button */}
-          <div id="google_translate_element" style={{ display: "none" }} />
+          <div id="google_translate_element" style={{ display: "none" }} suppressHydrationWarning />
           <script
             dangerouslySetInnerHTML={{
               __html: `

@@ -514,7 +514,9 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
               <a href={`/${countryCode}/telehealth`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">telehealth</a>,{" "}
               <a href={`/${countryCode}/terms`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">terms and conditions</a>,{" "}
               <a href={`/${countryCode}/purchase-terms`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">purchase terms</a>,{" "}
-              <a href={`/${countryCode}/glp1-waiver`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">GLP-1 treatment laboratory testing waiver</a>, and{" "}
+              <a href={`/${countryCode}/glp1-waiver`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">GLP-1 treatment laboratory testing waiver</a>,{" "}
+              <a href={`/${countryCode}/glp1-treatment-consent`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">informed consent for GLP-1 and GLP-1/GIP treatments</a>,{" "}
+              <a href={`/${countryCode}/lab-work-waiver`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">baseline lab work waiver</a>, and{" "}
               <a href={`/${countryCode}/shipping-policy`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">shipping, refund and return policy</a>.
             </span>
           </label>
