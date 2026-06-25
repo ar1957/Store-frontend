@@ -12,23 +12,25 @@ import { Pool } from "pg"
 
 const pgPool = new Pool({ connectionString: process.env.DATABASE_URL })
 
-async function getClinicPaymentProvider(host: string): Promise<string> {
+async function getClinicConfig(host: string): Promise<{ paymentProvider: string; requiresPhone: boolean }> {
   try {
     const domain = host.split(":")[0]
     const result = await pgPool.query(
-      `SELECT payment_provider FROM clinic
+      `SELECT payment_provider, pharmacy_enabled, pharmacy_type FROM clinic
        WHERE ($1 = ANY(domains) OR $2 = ANY(SELECT split_part(d,':',1) FROM unnest(domains) AS d))
          AND deleted_at IS NULL
          AND is_active = true
        LIMIT 1`,
       [host, domain]
     )
-    const provider = result.rows[0]?.payment_provider || "stripe"
-    console.log(`[CheckoutForm] host=${host} payment_provider=${provider}`)
-    return provider
+    const row = result.rows[0]
+    const provider = row?.payment_provider || "stripe"
+    const requiresPhone = !!(row?.pharmacy_enabled && row?.pharmacy_type === "rxvortex")
+    console.log(`[CheckoutForm] host=${host} payment_provider=${provider} requires_phone=${requiresPhone}`)
+    return { paymentProvider: provider, requiresPhone }
   } catch (e) {
-    console.error("[CheckoutForm] getClinicPaymentProvider error:", e)
-    return "stripe"
+    console.error("[CheckoutForm] getClinicConfig error:", e)
+    return { paymentProvider: "stripe", requiresPhone: false }
   }
 }
 
@@ -44,11 +46,13 @@ export default async function CheckoutForm({
   const headersList = await headers()
   const host = headersList.get("x-forwarded-host") || headersList.get("host") || "localhost:8000"
 
-  const [shippingMethods, paymentMethods, paymentProvider] = await Promise.all([
+  const [shippingMethods, paymentMethods, clinicConfig] = await Promise.all([
     listCartShippingMethods(cart.id),
     listCartPaymentMethods(cart.region?.id ?? ""),
-    getClinicPaymentProvider(host),
+    getClinicConfig(host),
   ])
+  const paymentProvider = clinicConfig.paymentProvider
+  const requiresPhone = clinicConfig.requiresPhone
 
   if (!shippingMethods || !paymentMethods) return null
 
@@ -68,6 +72,7 @@ export default async function CheckoutForm({
       availableShippingMethods={shippingMethods}
       availablePaymentMethods={filteredPaymentMethods}
       paymentProvider={paymentProvider}
+      requiresPhone={requiresPhone}
     />
   )
 }
