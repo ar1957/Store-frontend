@@ -4,7 +4,10 @@ import { useEffect, useRef } from "react"
 
 function resolveUrl(raw: string): string {
   const match = raw.match(/src=["']([^"']+)["']/i)
-  return match ? match[1] : raw.trim()
+  let url = match ? match[1] : raw.trim()
+  // Upgrade http:// to https:// — http resources are blocked on HTTPS pages (mixed content)
+  if (url.startsWith("http://")) url = "https://" + url.slice(7)
+  return url
 }
 
 function ScriptBadge({ src }: { src: string }) {
