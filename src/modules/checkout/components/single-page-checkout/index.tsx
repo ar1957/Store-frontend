@@ -31,6 +31,7 @@ type Props = {
   availableShippingMethods: HttpTypes.StoreCartShippingOption[]
   availablePaymentMethods: any[]
   paymentProvider?: string
+  requiresPhone?: boolean
 }
 
 export default function SinglePageCheckout({
@@ -39,6 +40,7 @@ export default function SinglePageCheckout({
   availableShippingMethods,
   availablePaymentMethods,
   paymentProvider = "stripe",
+  requiresPhone = false,
 }: Props) {
   const isAuthorizeNet = paymentProvider === "authorizenet"
 
@@ -64,7 +66,8 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
     (cart.shipping_address?.address_1 || shippingFormData["shipping_address.address_1"]) &&
     (cart.shipping_address?.city || shippingFormData["shipping_address.city"]) &&
     (cart.shipping_address?.postal_code || shippingFormData["shipping_address.postal_code"]) &&
-    (cart.email || shippingFormData["email"])
+    (cart.email || shippingFormData["email"]) &&
+    (!requiresPhone || !!(cart.shipping_address?.phone || shippingFormData["shipping_address.phone"]))
   )
 
   // ── Shipping ───────────────────────────────────────────────────────
@@ -347,6 +350,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
             onChange={toggleSameAsBilling}
             cart={cart}
             onFormDataChange={setShippingFormData}
+            requiresPhone={requiresPhone}
           />
           {!sameAsBilling && (
             <div className="mt-8">
