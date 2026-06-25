@@ -31,6 +31,7 @@ type Props = {
   availableShippingMethods: HttpTypes.StoreCartShippingOption[]
   availablePaymentMethods: any[]
   paymentProvider?: string
+  requiresPhone?: boolean
 }
 
 export default function SinglePageCheckout({
@@ -39,6 +40,7 @@ export default function SinglePageCheckout({
   availableShippingMethods,
   availablePaymentMethods,
   paymentProvider = "stripe",
+  requiresPhone = false,
 }: Props) {
   const isAuthorizeNet = paymentProvider === "authorizenet"
 
@@ -64,7 +66,8 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
     (cart.shipping_address?.address_1 || shippingFormData["shipping_address.address_1"]) &&
     (cart.shipping_address?.city || shippingFormData["shipping_address.city"]) &&
     (cart.shipping_address?.postal_code || shippingFormData["shipping_address.postal_code"]) &&
-    (cart.email || shippingFormData["email"])
+    (cart.email || shippingFormData["email"]) &&
+    (!requiresPhone || !!(cart.shipping_address?.phone || shippingFormData["shipping_address.phone"]))
   )
 
   // ── Shipping ───────────────────────────────────────────────────────
@@ -347,6 +350,7 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
             onChange={toggleSameAsBilling}
             cart={cart}
             onFormDataChange={setShippingFormData}
+            requiresPhone={requiresPhone}
           />
           {!sameAsBilling && (
             <div className="mt-8">
@@ -514,7 +518,9 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
               <a href={`/${countryCode}/telehealth`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">telehealth</a>,{" "}
               <a href={`/${countryCode}/terms`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">terms and conditions</a>,{" "}
               <a href={`/${countryCode}/purchase-terms`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">purchase terms</a>,{" "}
-              <a href={`/${countryCode}/glp1-waiver`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">GLP-1 treatment laboratory testing waiver</a>, and{" "}
+              <a href={`/${countryCode}/glp1-waiver`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">GLP-1 treatment laboratory testing waiver</a>,{" "}
+              <a href={`/${countryCode}/glp1-treatment-consent`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">informed consent for GLP-1 and GLP-1/GIP treatments</a>,{" "}
+              <a href={`/${countryCode}/lab-work-waiver`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">baseline lab work waiver</a>, and{" "}
               <a href={`/${countryCode}/shipping-policy`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">shipping, refund and return policy</a>.
             </span>
           </label>

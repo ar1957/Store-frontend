@@ -3,6 +3,7 @@ import { listCollections } from "@lib/data/collections"
 import { Text } from "@medusajs/ui"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import MedusaCTA from "@modules/layout/components/medusa-cta"
+import CertificationBadge from "./certification-badge"
 
 type NavLink = { label: string; url: string; open_new_tab?: boolean; children?: NavLink[] }
 type SocialLink = { platform: string; url: string }
@@ -172,7 +173,7 @@ export default async function Footer({
               </address>
             )}
             {certificationImageUrl && (
-              <img src={certificationImageUrl} alt="Certification badge" className="max-h-20 max-w-[130px] object-contain mt-1" />
+              <CertificationBadge url={certificationImageUrl} />
             )}
           </div>
 

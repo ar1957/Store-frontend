@@ -24,7 +24,7 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
   const buttonTextColor = getContrastColor(brandColor)
 
   return (
-    <html lang="en" data-mode="light">
+    <html lang="en" data-mode="light" suppressHydrationWarning>
       <head>
         <title>{tenant.name}</title>
         <style>{`
@@ -43,7 +43,7 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
           }
         `}</style>
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <Script
           src={`https://maps.googleapis.com/maps/api/js?libraries=places&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`}
           strategy="beforeInteractive"

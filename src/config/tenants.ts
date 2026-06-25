@@ -18,6 +18,7 @@ export type Tenant = {
   phone: string
   hours: string
   email: string
+  pharmacy_requires_phone?: boolean
 }
 
 // Fallback for when DB is unavailable (dev/error cases)
