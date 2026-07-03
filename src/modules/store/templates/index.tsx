@@ -14,7 +14,8 @@ const StoreTemplate = async ({
   countryCode: string
 }) => {
   const region = await getRegion(countryCode)
-  const categories = await listCategories({ parent_category_id: "null" })
+  const rawCategories = await listCategories({ parent_category_id: "null" })
+  const categories = [...(rawCategories || [])].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
 
   if (!region) return null
 
