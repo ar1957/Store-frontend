@@ -196,6 +196,18 @@ function BMIChart({ ft, inches, lbs, goalLbs }: { ft: number; inches: number; lb
   )
 }
 
+async function translateToEnglish(text: string): Promise<string> {
+  if (!text || !text.trim()) return text
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=es&tl=en&dt=t&q=${encodeURIComponent(text)}`
+    const res = await fetch(url)
+    const data = await res.json()
+    return data?.[0]?.[0]?.[0] || text
+  } catch {
+    return text
+  }
+}
+
 function getPublishableKey(): string {
   if (typeof window === "undefined") return process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
   if ((window as any).__TENANT_API_KEY__) return (window as any).__TENANT_API_KEY__
@@ -241,7 +253,7 @@ export default function EligibilityModal({
     setStep(s => Math.max(1, s - 1))
   }
 
-  const next = () => {
+  const next = async () => {
     setError("")
 
     if (step === 1) {
@@ -290,6 +302,20 @@ export default function EligibilityModal({
 
       setSubmitting(true)
       setError("")
+
+      const isSpanish = typeof window !== "undefined" && localStorage.getItem("mhc_lang") === "es"
+      const rawMedHistory = form.hasMedicalConditions ? form.medicalConditions : "None"
+      const rawAllergies = form.hasAllergies ? form.allergies : "None"
+      const rawMeds = allMeds || "None"
+
+      const [medicalHistory, allergies, currentMedications] = isSpanish
+        ? await Promise.all([
+            rawMedHistory !== "None" ? translateToEnglish(rawMedHistory) : Promise.resolve("None"),
+            rawAllergies !== "None" ? translateToEnglish(rawAllergies) : Promise.resolve("None"),
+            rawMeds !== "None" ? translateToEnglish(rawMeds) : Promise.resolve("None"),
+          ])
+        : [rawMedHistory, rawAllergies, rawMeds]
+
       onApproved({
         domain: clinicDomain,
         productId,
@@ -298,9 +324,9 @@ export default function EligibilityModal({
         dob: form.dob,
         sex: form.sex,
         pregnancy: form.sex === "female" ? form.pregnancy : null,
-        medicalHistory: form.hasMedicalConditions ? form.medicalConditions : "None",
-        allergies: form.hasAllergies ? form.allergies : "None",
-        currentMedications: allMeds || "None",
+        medicalHistory,
+        allergies,
+        currentMedications,
         heightFt: form.heightFt,
         heightIn: form.heightIn,
         weightLbs: form.weightLbs,
