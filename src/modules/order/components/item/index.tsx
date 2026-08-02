@@ -21,12 +21,20 @@ const Item = ({ item, currencyCode }: ItemProps) => {
       </Table.Cell>
 
       <Table.Cell className="text-left">
-        <Text
-          className="txt-medium-plus text-ui-fg-base"
-          data-testid="product-name"
-        >
-          {item.product_title}
-        </Text>
+        {item.product_title?.includes("<") ? (
+          <span
+            className="txt-medium-plus text-ui-fg-base"
+            data-testid="product-name"
+            dangerouslySetInnerHTML={{ __html: item.product_title }}
+          />
+        ) : (
+          <Text
+            className="txt-medium-plus text-ui-fg-base"
+            data-testid="product-name"
+          >
+            {item.product_title}
+          </Text>
+        )}
         <LineItemOptions variant={item.variant} data-testid="product-variant" />
       </Table.Cell>
 

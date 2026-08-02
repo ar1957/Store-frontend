@@ -52,12 +52,20 @@ const OrderCard = ({ order }: OrderCardProps) => {
             >
               <Thumbnail thumbnail={i.thumbnail} images={[]} size="full" />
               <div className="flex items-center text-small-regular text-ui-fg-base">
-                <span
-                  className="text-ui-fg-base font-semibold"
-                  data-testid="item-title"
-                >
-                  {i.title}
-                </span>
+                {i.title?.includes("<") ? (
+                  <span
+                    className="text-ui-fg-base font-semibold"
+                    data-testid="item-title"
+                    dangerouslySetInnerHTML={{ __html: i.title }}
+                  />
+                ) : (
+                  <span
+                    className="text-ui-fg-base font-semibold"
+                    data-testid="item-title"
+                  >
+                    {i.title}
+                  </span>
+                )}
                 <span className="ml-2">x</span>
                 <span data-testid="item-quantity">{i.quantity}</span>
               </div>

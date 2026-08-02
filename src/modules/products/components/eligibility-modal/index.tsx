@@ -359,7 +359,11 @@ export default function EligibilityModal({
             )}
           </div>
           <div style={s.headerCenter}>
-            <div style={s.productName}>{productTitle}</div>
+            {productTitle?.includes("<") ? (
+              <div style={s.productName} dangerouslySetInnerHTML={{ __html: productTitle }} />
+            ) : (
+              <div style={s.productName}>{productTitle}</div>
+            )}
             <div style={s.stepLabel}>{blocked ? "Not Eligible" : `Step ${step} of ${totalSteps} — ${stepLabel}`}</div>
           </div>
           <button onClick={onClose} style={s.closeBtn}>×</button>

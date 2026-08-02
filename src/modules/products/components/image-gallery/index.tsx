@@ -43,19 +43,34 @@ const ImageGallery = ({ images, productTitle }: ImageGalleryProps) => {
                     borderTopRightRadius: "inherit",
                   }}
                 >
-                  <h1
-                    style={{
-                      color: "#fff",
-                      fontWeight: 700,
-                      fontSize: "clamp(20px, 4vw, 32px)",
-                      lineHeight: 1.2,
-                      margin: 0,
-                      textShadow: "0 1px 4px rgba(0,0,0,0.4)",
-                      textAlign: "center",
-                    }}
-                  >
-                    {productTitle}
-                  </h1>
+                  {productTitle.includes("<") ? (
+                    <h1
+                      style={{
+                        color: "#fff",
+                        fontWeight: 700,
+                        fontSize: "clamp(20px, 4vw, 32px)",
+                        lineHeight: 1.2,
+                        margin: 0,
+                        textShadow: "0 1px 4px rgba(0,0,0,0.4)",
+                        textAlign: "center",
+                      }}
+                      dangerouslySetInnerHTML={{ __html: productTitle }}
+                    />
+                  ) : (
+                    <h1
+                      style={{
+                        color: "#fff",
+                        fontWeight: 700,
+                        fontSize: "clamp(20px, 4vw, 32px)",
+                        lineHeight: 1.2,
+                        margin: 0,
+                        textShadow: "0 1px 4px rgba(0,0,0,0.4)",
+                        textAlign: "center",
+                      }}
+                    >
+                      {productTitle}
+                    </h1>
+                  )}
                 </div>
               )}
             </Container>
