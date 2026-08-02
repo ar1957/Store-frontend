@@ -61,9 +61,11 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 
   if (!product) notFound()
 
+  const plainTitle = product.title?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
+
   return {
-    title: `${product.title} | Medusa Store`,
-    description: `${product.title}`,
+    title: `${plainTitle} | Medusa Store`,
+    description: `${plainTitle}`,
   }
 }
 
