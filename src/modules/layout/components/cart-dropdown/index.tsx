@@ -139,7 +139,11 @@ const CartDropdown = ({
                                     href={`/products/${item.product_handle}`}
                                     data-testid="product-link"
                                   >
-                                    {item.title}
+                                    {item.title?.includes("<") ? (
+                                      <span dangerouslySetInnerHTML={{ __html: item.title }} />
+                                    ) : (
+                                      item.title
+                                    )}
                                   </LocalizedClientLink>
                                 </h3>
                                 <LineItemOptions

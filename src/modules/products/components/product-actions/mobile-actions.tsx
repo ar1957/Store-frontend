@@ -74,7 +74,11 @@ const MobileActions: React.FC<MobileActionsProps> = ({
             data-testid="mobile-actions"
           >
             <div className="flex items-center gap-x-2">
-              <span data-testid="mobile-title">{product.title}</span>
+              {product.title?.includes("<") ? (
+                <span data-testid="mobile-title" dangerouslySetInnerHTML={{ __html: product.title }} />
+              ) : (
+                <span data-testid="mobile-title">{product.title}</span>
+              )}
               <span>—</span>
               {selectedPrice ? (
                 <div className="flex items-end gap-x-2 text-ui-fg-base">
