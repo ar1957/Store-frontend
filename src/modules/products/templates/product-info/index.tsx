@@ -41,13 +41,21 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
             {product.collection.title}
           </LocalizedClientLink>
         )}
-        <Heading
-          level="h2"
-          className="text-3xl leading-10 text-ui-fg-base"
-          data-testid="product-title"
-        >
-          {product.title}
-        </Heading>
+        {isHtml(product.title) ? (
+          <h2
+            className="text-3xl leading-10 text-ui-fg-base"
+            data-testid="product-title"
+            dangerouslySetInnerHTML={{ __html: cleanHtml(decodeIfEncoded(product.title)) }}
+          />
+        ) : (
+          <Heading
+            level="h2"
+            className="text-3xl leading-10 text-ui-fg-base"
+            data-testid="product-title"
+          >
+            {product.title}
+          </Heading>
+        )}
 
         {product.description && (
           isHtml(product.description) ? (
