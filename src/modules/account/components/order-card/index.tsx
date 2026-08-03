@@ -5,6 +5,7 @@ import Thumbnail from "@modules/products/components/thumbnail"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { convertToLocale } from "@lib/util/money"
 import { HttpTypes } from "@medusajs/types"
+import { getRichTitleHtmlProps, getRichTitleChildren } from "@lib/util/rich-title"
 
 type OrderCardProps = {
   order: HttpTypes.StoreOrder
@@ -52,20 +53,23 @@ const OrderCard = ({ order }: OrderCardProps) => {
             >
               <Thumbnail thumbnail={i.thumbnail} images={[]} size="full" />
               <div className="flex items-center text-small-regular text-ui-fg-base">
-                {i.title?.includes("<") ? (
-                  <span
-                    className="text-ui-fg-base font-semibold"
-                    data-testid="item-title"
-                    dangerouslySetInnerHTML={{ __html: i.title }}
-                  />
-                ) : (
-                  <span
-                    className="text-ui-fg-base font-semibold"
-                    data-testid="item-title"
-                  >
-                    {i.title}
-                  </span>
-                )}
+                {(() => {
+                  const htmlProps = getRichTitleHtmlProps(i.title)
+                  return htmlProps ? (
+                    <span
+                      className="text-ui-fg-base font-semibold"
+                      data-testid="item-title"
+                      {...htmlProps}
+                    />
+                  ) : (
+                    <span
+                      className="text-ui-fg-base font-semibold"
+                      data-testid="item-title"
+                    >
+                      {getRichTitleChildren(i.title)}
+                    </span>
+                  )
+                })()}
                 <span className="ml-2">x</span>
                 <span data-testid="item-quantity">{i.quantity}</span>
               </div>

@@ -1,5 +1,6 @@
 import { listProducts } from "@lib/data/products"
 import { getProductPrice } from "@lib/util/get-product-price"
+import { getRichTitleHtmlProps, getRichTitleChildren, getPlainTitle } from "@lib/util/rich-title"
 import { HttpTypes } from "@medusajs/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Image from "next/image"
@@ -34,32 +35,23 @@ export default async function ProductPreview({
       >
         {/* ── Title + Price header ── */}
         <div style={{ padding: "16px 18px 12px", background: "var(--color-primary, #1a1a1a)", textAlign: "center" }}>
-          {product.title?.includes("<") ? (
-            <div
-              data-testid="product-title"
-              style={{
-                color: "#111",
-                fontWeight: 700,
-                fontSize: 20,
-                lineHeight: 1.2,
-                marginBottom: 4,
-              }}
-              dangerouslySetInnerHTML={{ __html: product.title }}
-            />
-          ) : (
-            <div
-              data-testid="product-title"
-              style={{
-                color: "#111",
-                fontWeight: 700,
-                fontSize: 20,
-                lineHeight: 1.2,
-                marginBottom: 4,
-              }}
-            >
-              {product.title}
-            </div>
-          )}
+          {(() => {
+            const htmlProps = getRichTitleHtmlProps(product.title)
+            const titleStyle = {
+              color: "#111",
+              fontWeight: 700,
+              fontSize: 20,
+              lineHeight: 1.2,
+              marginBottom: 4,
+            }
+            return htmlProps ? (
+              <div data-testid="product-title" style={titleStyle} {...htmlProps} />
+            ) : (
+              <div data-testid="product-title" style={titleStyle}>
+                {getRichTitleChildren(product.title)}
+              </div>
+            )
+          })()}
           {cheapestPrice && (
             <div style={{ color: "#111", fontSize: 20, fontWeight: 800, marginTop: 2 }}>
               <PreviewPrice price={cheapestPrice} />
@@ -82,7 +74,7 @@ export default async function ProductPreview({
           {thumbnail ? (
             <Image
               src={thumbnail}
-              alt={product.title?.replace(/<[^>]*>/g, "") || "Product"}
+              alt={getPlainTitle(product.title) || "Product"}
               fill
               className="object-cover object-center"
               sizes="(max-width: 576px) 280px, (max-width: 768px) 360px, 480px"

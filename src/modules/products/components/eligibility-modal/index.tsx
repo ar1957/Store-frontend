@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { getRichTitleHtmlProps, getRichTitleChildren } from "@lib/util/rich-title"
 
 interface EligibilityModalProps {
   productId: string
@@ -359,11 +360,14 @@ export default function EligibilityModal({
             )}
           </div>
           <div style={s.headerCenter}>
-            {productTitle?.includes("<") ? (
-              <div style={s.productName} dangerouslySetInnerHTML={{ __html: productTitle }} />
-            ) : (
-              <div style={s.productName}>{productTitle}</div>
-            )}
+            {(() => {
+              const htmlProps = getRichTitleHtmlProps(productTitle)
+              return htmlProps ? (
+                <div style={s.productName} {...htmlProps} />
+              ) : (
+                <div style={s.productName}>{getRichTitleChildren(productTitle)}</div>
+              )
+            })()}
             <div style={s.stepLabel}>{blocked ? "Not Eligible" : `Step ${step} of ${totalSteps} — ${stepLabel}`}</div>
           </div>
           <button onClick={onClose} style={s.closeBtn}>×</button>

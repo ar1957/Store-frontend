@@ -10,6 +10,7 @@ import { getProductPrice } from "@lib/util/get-product-price"
 import OptionSelect from "./option-select"
 import { HttpTypes } from "@medusajs/types"
 import { isSimpleProduct } from "@lib/util/product"
+import { getRichTitleHtmlProps, getRichTitleChildren } from "@lib/util/rich-title"
 
 type MobileActionsProps = {
   product: HttpTypes.StoreProduct
@@ -74,11 +75,14 @@ const MobileActions: React.FC<MobileActionsProps> = ({
             data-testid="mobile-actions"
           >
             <div className="flex items-center gap-x-2">
-              {product.title?.includes("<") ? (
-                <span data-testid="mobile-title" dangerouslySetInnerHTML={{ __html: product.title }} />
-              ) : (
-                <span data-testid="mobile-title">{product.title}</span>
-              )}
+              {(() => {
+                const htmlProps = getRichTitleHtmlProps(product.title)
+                return htmlProps ? (
+                  <span data-testid="mobile-title" {...htmlProps} />
+                ) : (
+                  <span data-testid="mobile-title">{getRichTitleChildren(product.title)}</span>
+                )
+              })()}
               <span>—</span>
               {selectedPrice ? (
                 <div className="flex items-end gap-x-2 text-ui-fg-base">

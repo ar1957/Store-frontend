@@ -5,6 +5,7 @@ import LineItemOptions from "@modules/common/components/line-item-options"
 import LineItemPrice from "@modules/common/components/line-item-price"
 import LineItemUnitPrice from "@modules/common/components/line-item-unit-price"
 import Thumbnail from "@modules/products/components/thumbnail"
+import { getRichTitleHtmlProps, getRichTitleChildren } from "@lib/util/rich-title"
 
 type ItemProps = {
   item: HttpTypes.StoreCartLineItem | HttpTypes.StoreOrderLineItem
@@ -21,20 +22,23 @@ const Item = ({ item, currencyCode }: ItemProps) => {
       </Table.Cell>
 
       <Table.Cell className="text-left">
-        {item.product_title?.includes("<") ? (
-          <span
-            className="txt-medium-plus text-ui-fg-base"
-            data-testid="product-name"
-            dangerouslySetInnerHTML={{ __html: item.product_title }}
-          />
-        ) : (
-          <Text
-            className="txt-medium-plus text-ui-fg-base"
-            data-testid="product-name"
-          >
-            {item.product_title}
-          </Text>
-        )}
+        {(() => {
+          const htmlProps = getRichTitleHtmlProps(item.product_title)
+          return htmlProps ? (
+            <span
+              className="txt-medium-plus text-ui-fg-base"
+              data-testid="product-name"
+              {...htmlProps}
+            />
+          ) : (
+            <Text
+              className="txt-medium-plus text-ui-fg-base"
+              data-testid="product-name"
+            >
+              {getRichTitleChildren(item.product_title)}
+            </Text>
+          )
+        })()}
         <LineItemOptions variant={item.variant} data-testid="product-variant" />
       </Table.Cell>
 
