@@ -12,6 +12,7 @@ import LineItemUnitPrice from "@modules/common/components/line-item-unit-price"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Spinner from "@modules/common/icons/spinner"
 import Thumbnail from "@modules/products/components/thumbnail"
+import { getRichTitleHtmlProps, getRichTitleChildren } from "@lib/util/rich-title"
 import { useState } from "react"
 
 type ItemProps = {
@@ -63,20 +64,23 @@ const Item = ({ item, type = "full", currencyCode }: ItemProps) => {
       </Table.Cell>
 
       <Table.Cell className="text-left">
-        {item.product_title?.includes("<") ? (
-          <span
-            className="txt-medium-plus text-ui-fg-base"
-            data-testid="product-title"
-            dangerouslySetInnerHTML={{ __html: item.product_title }}
-          />
-        ) : (
-          <Text
-            className="txt-medium-plus text-ui-fg-base"
-            data-testid="product-title"
-          >
-            {item.product_title}
-          </Text>
-        )}
+        {(() => {
+          const htmlProps = getRichTitleHtmlProps(item.product_title)
+          return htmlProps ? (
+            <span
+              className="txt-medium-plus text-ui-fg-base"
+              data-testid="product-title"
+              {...htmlProps}
+            />
+          ) : (
+            <Text
+              className="txt-medium-plus text-ui-fg-base"
+              data-testid="product-title"
+            >
+              {getRichTitleChildren(item.product_title)}
+            </Text>
+          )
+        })()}
         <LineItemOptions variant={item.variant} data-testid="product-variant" />
       </Table.Cell>
 
