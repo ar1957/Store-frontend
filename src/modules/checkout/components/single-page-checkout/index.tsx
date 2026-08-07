@@ -20,6 +20,7 @@ import MedusaRadio from "@modules/common/components/radio"
 import ShippingAddress from "@modules/checkout/components/shipping-address"
 import BillingAddress from "@modules/checkout/components/billing_address"
 import compareAddresses from "@lib/util/compare-addresses"
+import { hasPoBoxAddress } from "@lib/util/po-box"
 import EligibilityModal from "@modules/products/components/eligibility-modal"
 import { useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
@@ -60,10 +61,14 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
   setBillingFormData(data)
 }
 
+  const shippingAddress1 = cart.shipping_address?.address_1 || shippingFormData["shipping_address.address_1"]
+  const shippingAddress2 = cart.shipping_address?.address_2 || shippingFormData["shipping_address.address_2"]
+
   const addressComplete = !!(
     (cart.shipping_address?.first_name || shippingFormData["shipping_address.first_name"]) &&
     (cart.shipping_address?.last_name || shippingFormData["shipping_address.last_name"]) &&
-    (cart.shipping_address?.address_1 || shippingFormData["shipping_address.address_1"]) &&
+    shippingAddress1 &&
+    !hasPoBoxAddress(shippingAddress1, shippingAddress2) &&
     (cart.shipping_address?.city || shippingFormData["shipping_address.city"]) &&
     (cart.shipping_address?.postal_code || shippingFormData["shipping_address.postal_code"]) &&
     (cart.email || shippingFormData["email"]) &&
