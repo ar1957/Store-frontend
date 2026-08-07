@@ -6,6 +6,7 @@ import { mapKeys } from "lodash"
 import React, { useEffect, useMemo, useRef, useState } from "react"
 import AddressSelect from "../address-select"
 import { usePlacesWidget } from "react-google-autocomplete"
+import { isPoBoxAddress } from "@lib/util/po-box"
 
 const STATE_ABBR: Record<string, string> = {
   "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
@@ -245,9 +246,19 @@ const ShippingAddress = ({
               Address<span className="text-rose-500">*</span>
             </label>
           </div>
+          {isPoBoxAddress(formData["shipping_address.address_1"]) && (
+            <p className="text-xs text-red-500 mt-1">
+              We can't ship prescriptions to a PO Box. Please enter a physical street address.
+            </p>
+          )}
         </div>
         <div className="col-span-2">
           <Input label="Apartment, suite, unit, etc. (optional)" name="shipping_address.address_2" autoComplete="address-line2" value={formData["shipping_address.address_2"]} onChange={handleChange} data-testid="shipping-address-2-input" />
+          {isPoBoxAddress(formData["shipping_address.address_2"]) && (
+            <p className="text-xs text-red-500 mt-1">
+              We can't ship prescriptions to a PO Box. Please enter a physical street address.
+            </p>
+          )}
         </div>
         <Input label="City" name="shipping_address.city" autoComplete="address-level2" value={formData["shipping_address.city"]} onChange={handleChange} required data-testid="shipping-city-input" />
         <div className="flex flex-col">
