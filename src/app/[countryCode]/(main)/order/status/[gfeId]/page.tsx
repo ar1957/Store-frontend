@@ -57,6 +57,12 @@ interface OrderStatus {
   pharmacyQueueId: string | null
   pharmacyStatus: string | null
   tracking: { trackingNumber: string; carrier: string; shippedAt: string } | null
+  subOrders?: {
+    dosage: string | null
+    pharmacyQueueId: string | null
+    pharmacyStatus: string | null
+    tracking: { trackingNumber: string; carrier: string; shippedAt: string } | null
+  }[]
   timeline: Record<string, string | null>
 }
 
@@ -272,8 +278,43 @@ export default function OrderStatusPage({ params: paramsPromise }: { params: Pro
           </div>
         )}
 
-        {/* Tracking info */}
-        {data.tracking && (
+        {/* Tracking info — multiple shipments if this order was split into
+            separate monthly pharmacy orders, otherwise the single tracking box */}
+        {data.subOrders && data.subOrders.length > 1 ? (
+          <div style={s.infoBox}>
+            <p style={s.infoTitle}>📦 Shipments ({data.subOrders.length})</p>
+            <p style={s.infoNote}>
+              Your order ships in {data.subOrders.length} separate packages, one per month —
+              each has its own tracking number.
+            </p>
+            {data.subOrders.map((so, i) => {
+              const url = so.tracking
+                ? (CARRIERS[so.tracking.carrier?.toLowerCase()] || "") + so.tracking.trackingNumber
+                : null
+              return (
+                <div key={i} style={{ ...s.trackingRow, flexDirection: "column", alignItems: "flex-start", borderTop: i > 0 ? "1px solid #e5e7eb" : "none", paddingTop: i > 0 ? 10 : 0, marginTop: i > 0 ? 10 : 0 }}>
+                  <span style={{ ...s.trackingLabel, fontWeight: 700, marginBottom: 4 }}>
+                    Package {i + 1} of {data.subOrders!.length}{so.dosage ? ` — ${so.dosage}` : ""}
+                  </span>
+                  {so.tracking ? (
+                    <>
+                      <span style={s.trackingValue}>{so.tracking.carrier?.toUpperCase()}: {so.tracking.trackingNumber}</span>
+                      {url && (
+                        <a href={url} target="_blank" rel="noopener noreferrer" style={{ ...s.btn, marginTop: 6 }}>
+                          Track Package →
+                        </a>
+                      )}
+                    </>
+                  ) : (
+                    <span style={{ ...s.trackingValue, color: "#92400e" }}>
+                      {so.pharmacyStatus || "Not yet shipped"}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ) : data.tracking && (
           <div style={s.infoBox}>
             <p style={s.infoTitle}>📦 Tracking Information</p>
             <div style={s.trackingRow}>

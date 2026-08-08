@@ -14,6 +14,7 @@ import LineItemOptions from "@modules/common/components/line-item-options"
 import LineItemPrice from "@modules/common/components/line-item-price"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Thumbnail from "@modules/products/components/thumbnail"
+import { getRichTitleHtmlProps, getRichTitleChildren } from "@lib/util/rich-title"
 import { usePathname } from "next/navigation"
 import { Fragment, useEffect, useRef, useState } from "react"
 
@@ -139,11 +140,14 @@ const CartDropdown = ({
                                     href={`/products/${item.product_handle}`}
                                     data-testid="product-link"
                                   >
-                                    {item.title?.includes("<") ? (
-                                      <span dangerouslySetInnerHTML={{ __html: item.title }} />
-                                    ) : (
-                                      item.title
-                                    )}
+                                    {(() => {
+                                      const htmlProps = getRichTitleHtmlProps(item.title)
+                                      return htmlProps ? (
+                                        <span {...htmlProps} />
+                                      ) : (
+                                        getRichTitleChildren(item.title)
+                                      )
+                                    })()}
                                   </LocalizedClientLink>
                                 </h3>
                                 <LineItemOptions

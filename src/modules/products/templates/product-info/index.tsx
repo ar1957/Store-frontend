@@ -1,6 +1,7 @@
 import { HttpTypes } from "@medusajs/types"
 import { Heading, Text } from "@medusajs/ui"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { getRichTitleHtmlProps, getRichTitleChildren } from "@lib/util/rich-title"
 
 type ProductInfoProps = {
   product: HttpTypes.StoreProduct
@@ -41,21 +42,24 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
             {product.collection.title}
           </LocalizedClientLink>
         )}
-        {isHtml(product.title) ? (
-          <h2
-            className="text-3xl leading-10 text-ui-fg-base"
-            data-testid="product-title"
-            dangerouslySetInnerHTML={{ __html: cleanHtml(decodeIfEncoded(product.title)) }}
-          />
-        ) : (
-          <Heading
-            level="h2"
-            className="text-3xl leading-10 text-ui-fg-base"
-            data-testid="product-title"
-          >
-            {product.title}
-          </Heading>
-        )}
+        {(() => {
+          const htmlProps = getRichTitleHtmlProps(product.title)
+          return htmlProps ? (
+            <h2
+              className="text-3xl leading-10 text-ui-fg-base"
+              data-testid="product-title"
+              {...htmlProps}
+            />
+          ) : (
+            <Heading
+              level="h2"
+              className="text-3xl leading-10 text-ui-fg-base"
+              data-testid="product-title"
+            >
+              {getRichTitleChildren(product.title)}
+            </Heading>
+          )
+        })()}
 
         {product.description && (
           isHtml(product.description) ? (

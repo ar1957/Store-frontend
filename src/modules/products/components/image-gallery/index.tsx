@@ -1,6 +1,8 @@
 import { HttpTypes } from "@medusajs/types"
 import { Container } from "@medusajs/ui"
 import Image from "next/image"
+import type { CSSProperties } from "react"
+import { getRichTitleHtmlProps, getRichTitleChildren } from "@lib/util/rich-title"
 
 type ImageGalleryProps = {
   images: HttpTypes.StoreProductImage[]
@@ -43,34 +45,23 @@ const ImageGallery = ({ images, productTitle }: ImageGalleryProps) => {
                     borderTopRightRadius: "inherit",
                   }}
                 >
-                  {productTitle.includes("<") ? (
-                    <h1
-                      style={{
-                        color: "#fff",
-                        fontWeight: 700,
-                        fontSize: "clamp(20px, 4vw, 32px)",
-                        lineHeight: 1.2,
-                        margin: 0,
-                        textShadow: "0 1px 4px rgba(0,0,0,0.4)",
-                        textAlign: "center",
-                      }}
-                      dangerouslySetInnerHTML={{ __html: productTitle }}
-                    />
-                  ) : (
-                    <h1
-                      style={{
-                        color: "#fff",
-                        fontWeight: 700,
-                        fontSize: "clamp(20px, 4vw, 32px)",
-                        lineHeight: 1.2,
-                        margin: 0,
-                        textShadow: "0 1px 4px rgba(0,0,0,0.4)",
-                        textAlign: "center",
-                      }}
-                    >
-                      {productTitle}
-                    </h1>
-                  )}
+                  {(() => {
+                    const htmlProps = getRichTitleHtmlProps(productTitle)
+                    const headingStyle: CSSProperties = {
+                      color: "#fff",
+                      fontWeight: 700,
+                      fontSize: "clamp(20px, 4vw, 32px)",
+                      lineHeight: 1.2,
+                      margin: 0,
+                      textShadow: "0 1px 4px rgba(0,0,0,0.4)",
+                      textAlign: "center",
+                    }
+                    return htmlProps ? (
+                      <h1 style={headingStyle} {...htmlProps} />
+                    ) : (
+                      <h1 style={headingStyle}>{getRichTitleChildren(productTitle)}</h1>
+                    )
+                  })()}
                 </div>
               )}
             </Container>

@@ -4,6 +4,7 @@ import { listProducts } from "@lib/data/products"
 import { getRegion, listRegions } from "@lib/data/regions"
 import ProductTemplate from "@modules/products/templates"
 import { HttpTypes } from "@medusajs/types"
+import { getPlainTitle } from "@lib/util/rich-title"
 
 export const dynamic = "force-dynamic"
 
@@ -61,7 +62,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 
   if (!product) notFound()
 
-  const plainTitle = product.title?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
+  const plainTitle = getPlainTitle(product.title)
 
   return {
     title: `${plainTitle} | Medusa Store`,
