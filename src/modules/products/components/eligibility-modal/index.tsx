@@ -39,6 +39,9 @@ const BLANK: FormData = {
   heightFt: 5, heightIn: 6, weightLbs: 0, goalWeightLbs: 0,
 }
 
+const minDob = () => { const d = new Date(); d.setFullYear(d.getFullYear() - 100); return d.toISOString().split("T")[0] }
+const maxDob = () => { const d = new Date(); d.setFullYear(d.getFullYear() - 15); return d.toISOString().split("T")[0] }
+
 const GLP1_MEDS = [
   "Compound Semaglutide",
   "Tirzepatide",
@@ -263,6 +266,7 @@ export default function EligibilityModal({
     }
     if (step === 2) {
       if (!form.dob) return setError("Please enter your date of birth")
+      if (form.dob < minDob() || form.dob > maxDob()) return setError("Please enter a valid date of birth (must be at least 15 years old)")
       if (!form.sex) return setError("Please select your biological sex")
       return setStep(3)
     }
@@ -442,8 +446,8 @@ export default function EligibilityModal({
                 <label style={s.label}>Date of Birth</label>
                 <input type="date" style={s.input}
                   value={form.dob}
-                  min={(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 100); return d.toISOString().split("T")[0] })()}
-                  max={(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 15); return d.toISOString().split("T")[0] })()}
+                  min={minDob()}
+                  max={maxDob()}
                   onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
               </div>
               <div style={s.fieldGroup}>
