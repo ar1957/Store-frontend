@@ -183,8 +183,8 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
   }
 
   // ── Consent ────────────────────────────────────────────────────────
-  const [consentTerms, setConsentTerms] = useState(false)
   const [consentPrivacy, setConsentPrivacy] = useState(false)
+  const [consentMedicationEducation, setConsentMedicationEducation] = useState(false)
 
   // ── Eligibility gate ───────────────────────────────────────────────
   const cartMeta = (liveCart as any).metadata as Record<string, any> | null
@@ -335,8 +335,8 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
     (noPaymentNeeded || activeSession || isPaypal(selectedPaymentMethod) || isAuthorizeNet) &&
     (noPaymentNeeded || !isStripeLike(selectedPaymentMethod) || cardComplete || isAuthorizeNet) &&
     (noPaymentNeeded || !isAuthorizeNet || authorizeNetCardComplete) &&
-    consentTerms &&
     consentPrivacy &&
+    consentMedicationEducation &&
     (!cartRequiresEligibility || eligibilityVerified) &&
     (locations.length === 0 || !!selectedLocation)
 
@@ -504,16 +504,6 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
 
         <div className="flex flex-col gap-y-4 mb-6">
           <label className="flex items-start gap-x-3 cursor-pointer">
-            <input type="checkbox" checked={consentTerms}
-              onChange={e => setConsentTerms(e.target.checked)}
-              className="mt-0.5 w-4 h-4 accent-ui-fg-interactive flex-shrink-0" />
-            <span className="text-sm text-ui-fg-base">
-              I have read and agree to the website{" "}
-              <a href={`/${countryCode}/terms`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">terms and conditions</a>{" "}
-              <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <label className="flex items-start gap-x-3 cursor-pointer">
             <input type="checkbox" checked={consentPrivacy}
               onChange={e => setConsentPrivacy(e.target.checked)}
               className="mt-0.5 w-4 h-4 accent-ui-fg-interactive flex-shrink-0" />
@@ -529,6 +519,17 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
               <a href={`/${countryCode}/shipping-policy`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">shipping, refund and return policy</a>.
             </span>
           </label>
+          <label className="flex items-start gap-x-3 cursor-pointer">
+            <input type="checkbox" checked={consentMedicationEducation}
+              onChange={e => setConsentMedicationEducation(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-ui-fg-interactive flex-shrink-0" />
+            <span className="text-sm text-ui-fg-base">
+              I have read and understood the{" "}
+              <a href={`/${countryCode}/medication-safety-education`} target="_blank" rel="noopener noreferrer" className="text-ui-fg-interactive hover:underline">medication safety &amp; patient education</a>{" "}
+              (English / Español), including dosing, syringe unit, and nursing team verification instructions{" "}
+              <span className="text-red-500">*</span>
+            </span>
+          </label>
         </div>
 
         {!canPlaceOrder && (
@@ -540,8 +541,8 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
               {!paidByGiftcard && !activeSession && !zeroTotal && !isPaypal(selectedPaymentMethod) && !isAuthorizeNet && <li>Payment details</li>}
               {isStripeLike(selectedPaymentMethod) && !isAuthorizeNet && !cardComplete && activeSession && !zeroTotal && !noPaymentNeeded && <li>Card details</li>}
               {isAuthorizeNet && !authorizeNetCardComplete && !zeroTotal && !noPaymentNeeded && <li>Card details</li>}
-              {!consentTerms && <li>Accept terms and conditions</li>}
               {!consentPrivacy && <li>Consent to privacy policy and telehealth terms</li>}
+              {!consentMedicationEducation && <li>Review medication safety &amp; patient education</li>}
               {cartRequiresEligibility && !eligibilityVerified && (
                 <li>
                   Health eligibility screening —{" "}
