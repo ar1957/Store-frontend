@@ -7,7 +7,26 @@ const BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
 const tenantCache = new Map<string, { apiKey: string; expiresAt: number }>()
 const CACHE_TTL_MS = 60_000
 
+// Patterns that only appear in scanner/bot probe traffic, never in legitimate storefront URLs
+const SCANNER_EXT =
+  /\.(php|bak|old|tmp|swp|save|orig|backup|sql|cfg|ini|pem|crt|key|p12|lz4|xz|sh|rb|py|inc|properties|aspx|asp|jsp|cgi|log)$/i
+const SCANNER_PATH =
+  /^\/(wp-admin|wp-login|phpmyadmin|xmlrpc|\.env|\.git|\.aws|\.ssh|\.ssl|actuator|cgi-bin|setup\.cgi)/i
+
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+
+  // Short-circuit scanner probes before any logging or backend calls.
+  // Returning 308 (3xx) keeps these out of EB's 4xx health metric.
+  if (
+    SCANNER_EXT.test(pathname) ||
+    SCANNER_PATH.test(pathname) ||
+    pathname.includes("/../") ||
+    pathname.endsWith("~")
+  ) {
+    return NextResponse.redirect(new URL("/us/store", request.url), 308)
+  }
+
   const requestHeaders = new Headers(request.headers)
 
   const host =
