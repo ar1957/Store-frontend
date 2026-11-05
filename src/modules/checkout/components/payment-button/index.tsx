@@ -259,11 +259,15 @@ const StripePaymentButtonInner = ({
       return
     }
 
+    // Address/email must be saved to the cart BEFORE the card is charged —
+    // otherwise a paid order can be created with no patient details.
     if (onBeforeSubmit) {
       try {
         await onBeforeSubmit()
-      } catch {
-        // address save failure is non-fatal
+      } catch (err: any) {
+        setErrorMessage(err?.message || "We couldn't save your shipping details. Please try again.")
+        setSubmitting(false)
+        return
       }
     }
 

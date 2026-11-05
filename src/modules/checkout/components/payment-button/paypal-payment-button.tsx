@@ -29,8 +29,16 @@ const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
   )
 
   const onPaymentCompleted = async () => {
+    // Address/email must be on the cart before the order is completed —
+    // otherwise the order is created with no patient details.
     if (onBeforeSubmit) {
-      try { await onBeforeSubmit() } catch { /* non-fatal */ }
+      try {
+        await onBeforeSubmit()
+      } catch (err: any) {
+        setErrorMessage(err?.message || "We couldn't save your shipping details. Please try again.")
+        setSubmitting(false)
+        return
+      }
     }
     await placeOrder()
       .catch((err) => {
