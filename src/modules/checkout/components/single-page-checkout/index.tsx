@@ -568,18 +568,27 @@ const handleBillingFormDataChange = (data: Record<string, string>) => {
               authorizeNetCardData={isAuthorizeNet ? authorizeNetCardData : undefined}
               data-testid="submit-order-button"
               onBeforeSubmit={async () => {
-                try {
-                  const formData = new FormData(addressFormRef.current!)
-                  if (sameAsBilling) {
-                    formData.set("same_as_billing", "on")
-                  } else {
-                    Object.entries(billingFormData).forEach(([key, value]) => {
-                      formData.set(key, value)
-                    })
-                  }
-                  await saveShippingAddress(formData)
-                } catch {
-                  // non-fatal
+                // MUST succeed before any payment is attempted. The "Place
+                // order" button is enabled from what's typed in the form, but
+                // the details only reach the cart here — if this save fails
+                // and we carry on, the card is charged and the order is
+                // created with no name/email/address (order #437, 2026-11-04).
+                // Every payment button aborts when this throws.
+                if (!addressFormRef.current) {
+                  throw new Error("We couldn't read your shipping details. Please refresh the page and try again. You have not been charged.")
+                }
+                const formData = new FormData(addressFormRef.current)
+                if (sameAsBilling) {
+                  formData.set("same_as_billing", "on")
+                } else {
+                  Object.entries(billingFormData).forEach(([key, value]) => {
+                    formData.set(key, value)
+                  })
+                }
+                const saveError = await saveShippingAddress(formData)
+                if (saveError) {
+                  console.error("[checkout] saveShippingAddress failed:", saveError)
+                  throw new Error("We couldn't save your contact and shipping details. Please refresh the page and try again. You have not been charged.")
                 }
               }}
             />
