@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
     const tenant = data?.tenant
     return NextResponse.json({
       stripeKey: tenant?.stripe_publishable_key || null,
+      stripeMode: tenant?.stripe_mode || "direct",
       paypalClientId: tenant?.paypal_client_id || null,
       paypalMode: tenant?.paypal_mode || "sandbox",
       paymentProvider: tenant?.payment_provider || "stripe",
