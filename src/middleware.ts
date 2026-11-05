@@ -7,7 +7,21 @@ const BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
 const tenantCache = new Map<string, { apiKey: string; expiresAt: number }>()
 const CACHE_TTL_MS = 60_000
 
+// Valid storefront paths always start with a 2-letter country code: /us/..., /ca/..., etc.
+// Anything else is a scanner probe or invalid path. Return 308 (3xx, not counted by EB health)
+// before any logging or backend calls.
+const COUNTRY_PATH = /^\/[a-z]{2}(\/|$)/i
+
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+
+  // Redirect everything that isn't a real storefront path.
+  // Real paths: /{countryCode}/store, /{countryCode}/products/..., etc.
+  // Root / is allowed (Next.js redirects it). Everything else is scanner noise.
+  if (pathname !== "/" && !COUNTRY_PATH.test(pathname)) {
+    return NextResponse.redirect(new URL("/us/store", request.url), 308)
+  }
+
   const requestHeaders = new Headers(request.headers)
 
   const host =
